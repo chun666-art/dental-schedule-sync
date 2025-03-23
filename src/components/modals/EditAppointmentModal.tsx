@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { loadAppointments, saveAppointments } from '@/lib/data-utils';
+import { loadAppointments, saveAppointments, updateAppointmentInAllSlots } from '@/lib/data-utils';
 import { Appointment } from '@/types/appointment';
 
 interface EditAppointmentModalProps {
@@ -27,6 +27,7 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
   const [phone, setPhone] = useState<string>('');
   const [treatment, setTreatment] = useState<string>('');
   const [status, setStatus] = useState<"รอการยืนยันนัด" | "ยืนยันนัด" | "นัดถูกยกเลิก">("รอการยืนยันนัด");
+  const [originalAppointment, setOriginalAppointment] = useState<Appointment | null>(null);
 
   useEffect(() => {
     if (isOpen && data && data.appointment) {
@@ -36,27 +37,31 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
       setPhone(data.appointment.phone || '');
       setTreatment(data.appointment.treatment || '');
       setStatus(data.appointment.status || "รอการยืนยันนัด");
+      setOriginalAppointment(data.appointment);
     }
   }, [isOpen, data]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const appointments = loadAppointments();
-    
-    // ถ้า appointments[data.date][data.time] มีค่า
-    if (appointments[data.date] && appointments[data.date][data.time]) {
-      // ตั้งค่าเป็นอาร์เรย์ที่มีการนัดหมายอันใหม่เพียงอันเดียว
-      appointments[data.date][data.time] = [{
+    if (originalAppointment) {
+      const newAppointment: Appointment = {
         dentist,
         duration,
         patient,
         phone,
         treatment,
         status
-      }];
+      };
+
+      // อัพเดทข้อมูลในทุกช่องเวลาที่เกี่ยวข้อง
+      updateAppointmentInAllSlots(
+        data.date,
+        data.time,
+        originalAppointment,
+        newAppointment
+      );
       
-      saveAppointments(appointments);
       onClose();
     }
   };

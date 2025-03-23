@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { loadAppointments, saveAppointments, findAvailableSlots } from '@/lib/data-utils';
+import { loadAppointments, saveAppointments, findAvailableSlots, saveAppointmentWithMultipleSlots } from '@/lib/data-utils';
 import { dateToKey, formatDate } from '@/lib/date-utils';
 import { Appointment } from '@/types/appointment';
 
@@ -28,9 +28,11 @@ const RebookModal: React.FC<RebookModalProps> = ({
   const [treatment, setTreatment] = useState<string>('');
   const [duration, setDuration] = useState<"30min" | "1hour" | "2hours">("30min");
   const [delay, setDelay] = useState<number>(0);
+  const [period, setPeriod] = useState<'morning' | 'afternoon' | 'all'>('all');
   const [availableSlot, setAvailableSlot] = useState<string | null>(null);
   const [availableDate, setAvailableDate] = useState<Date | null>(null);
   const [hasSearched, setHasSearched] = useState<boolean>(false);
+  const [confirmBooking, setConfirmBooking] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && data && data.appointment) {
@@ -40,9 +42,11 @@ const RebookModal: React.FC<RebookModalProps> = ({
       setTreatment(data.appointment.treatment || '');
       setDuration(data.appointment.duration || "30min");
       setDelay(0);
+      setPeriod('all');
       setAvailableSlot(null);
       setAvailableDate(null);
       setHasSearched(false);
+      setConfirmBooking(false);
     }
   }, [isOpen, data]);
 
@@ -53,27 +57,39 @@ const RebookModal: React.FC<RebookModalProps> = ({
     const startDate = new Date();
     startDate.setDate(startDate.getDate() + delay);
     
-    // ค้นหาคิวว่าง
-    const isSlotAvailable = findAvailableSlots(startDate, duration, dentist);
+    // ค้นหาคิวว่างตามช่วงเวลาที่เลือก
+    let foundSlot = false;
+    let searchDate = new Date(startDate);
+    let availableSlots: string[] = [];
     
-    if (isSlotAvailable) {
-      setAvailableSlot('9:00-9:30'); // สมมติว่าเป็นช่วงเวลาแรกที่ว่าง
-      setAvailableDate(startDate);
-    } else {
+    // ค้นหาไปเรื่อยๆ จนกว่าจะพบคิวว่าง หรือครบ 60 วัน
+    for (let i = 0; i < 60; i++) {
+      availableSlots = findAvailableSlots(searchDate, duration, dentist, undefined, period);
+      
+      if (availableSlots.length > 0) {
+        foundSlot = true;
+        setAvailableSlot(availableSlots[0]);
+        setAvailableDate(searchDate);
+        break;
+      }
+      
+      // เลื่อนไปวันถัดไป
+      searchDate = new Date(searchDate);
+      searchDate.setDate(searchDate.getDate() + 1);
+    }
+    
+    if (!foundSlot) {
       setAvailableSlot(null);
       setAvailableDate(null);
     }
     
     setHasSearched(true);
+    setConfirmBooking(foundSlot);
   };
 
   const handleBook = () => {
     if (availableSlot && availableDate) {
-      const appointments = loadAppointments();
       const dateKey = dateToKey(availableDate);
-      
-      appointments[dateKey] = appointments[dateKey] || {};
-      appointments[dateKey][availableSlot] = appointments[dateKey][availableSlot] || [];
       
       const newAppointment: Appointment = {
         dentist,
@@ -84,10 +100,31 @@ const RebookModal: React.FC<RebookModalProps> = ({
         status: "รอการยืนยันนัด"
       };
       
-      appointments[dateKey][availableSlot].push(newAppointment);
-      saveAppointments(appointments);
+      // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
+      saveAppointmentWithMultipleSlots(dateKey, availableSlot, newAppointment);
       
       onClose();
+    }
+  };
+
+  const handleCancelConfirm = () => {
+    setConfirmBooking(false);
+    // ค้นหาคิวว่างใหม่โดยเลื่อนวันไปอีก 1 วัน
+    if (availableDate) {
+      const nextDate = new Date(availableDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      const availableSlots = findAvailableSlots(nextDate, duration, dentist, undefined, period);
+      
+      if (availableSlots.length > 0) {
+        setAvailableSlot(availableSlots[0]);
+        setAvailableDate(nextDate);
+        setConfirmBooking(true);
+      } else {
+        setAvailableSlot(null);
+        setAvailableDate(null);
+        setHasSearched(true);
+      }
     }
   };
 
@@ -98,9 +135,11 @@ const RebookModal: React.FC<RebookModalProps> = ({
     setTreatment('');
     setDuration("30min");
     setDelay(0);
+    setPeriod('all');
     setAvailableSlot(null);
     setAvailableDate(null);
     setHasSearched(false);
+    setConfirmBooking(false);
     onClose();
   };
 
@@ -177,6 +216,21 @@ const RebookModal: React.FC<RebookModalProps> = ({
           </div>
           
           <div className="grid gap-2">
+            <Label htmlFor="rebook-period">ช่วงเวลา:</Label>
+            <select
+              id="rebook-period"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon' | 'all')}
+              className="p-2 border rounded"
+              required
+            >
+              <option value="all">ทั้งวัน</option>
+              <option value="morning">ช่วงเช้า</option>
+              <option value="afternoon">ช่วงบ่าย</option>
+            </select>
+          </div>
+          
+          <div className="grid gap-2">
             <Label htmlFor="rebook-delay">จำนวนวันที่ต้องการรอ:</Label>
             <input
               type="number"
@@ -189,7 +243,7 @@ const RebookModal: React.FC<RebookModalProps> = ({
             />
           </div>
           
-          {hasSearched && (
+          {hasSearched && !confirmBooking && (
             <div className="mt-4 p-3 bg-gray-100 rounded-md">
               <h3 className="font-medium mb-2">ผลการค้นหา:</h3>
               {availableDate && availableSlot ? (
@@ -199,10 +253,10 @@ const RebookModal: React.FC<RebookModalProps> = ({
                   <p>เวลา: {availableSlot}</p>
                   <Button 
                     type="button" 
-                    onClick={handleBook} 
+                    onClick={() => setConfirmBooking(true)} 
                     className="mt-2 w-full bg-green-500 hover:bg-green-600"
                   >
-                    นัดคิวนี้
+                    ยืนยันนัดคิวนี้
                   </Button>
                 </div>
               ) : (
@@ -211,8 +265,34 @@ const RebookModal: React.FC<RebookModalProps> = ({
             </div>
           )}
           
+          {confirmBooking && (
+            <div className="mt-4 p-3 bg-gray-100 rounded-md">
+              <h3 className="font-medium mb-2">ยืนยันการนัด:</h3>
+              <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
+              <p>เวลา: {availableSlot}</p>
+              <div className="mt-2 flex space-x-2">
+                <Button 
+                  type="button" 
+                  onClick={handleCancelConfirm} 
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                >
+                  หาคิวอื่น
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={handleBook} 
+                  className="flex-1 bg-green-500 hover:bg-green-600"
+                >
+                  ยืนยันนัด
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <DialogFooter>
-            <Button type="submit">ค้นหา</Button>
+            {!confirmBooking && (
+              <Button type="submit">ค้นหา</Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

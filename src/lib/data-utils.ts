@@ -1,6 +1,6 @@
 
 import { dateToKey } from './date-utils';
-import { Appointment, LeaveRecord, MeetingRecord, DentistRecord } from '@/types/appointment';
+import { Appointment, MeetingRecord, DentistRecord, CancelTarget } from '@/types/appointment';
 
 // ดึงข้อมูลการนัดหมายจาก localStorage
 export function loadAppointments(): Record<string, Record<string, Appointment[]>> {
@@ -96,13 +96,14 @@ export function checkAndCleanupData(): void {
   }
 }
 
-// ตรวจสอบว่า slot ว่างสำหรับการนัดหมายหรือไม่
+// ตรวจสอบว่า slot ว่างสำหรับการนัดหมายหรือไม่ และค้นหาช่องเวลาที่ว่าง
 export function findAvailableSlots(
   date: Date,
   duration: string,
   dentist: string,
-  selectedTime?: string
-): boolean {
+  selectedTime?: string,
+  period?: 'morning' | 'afternoon' | 'all'
+): string[] {
   const dateKey = dateToKey(date);
   const dayOfWeek = date.getDay();
   const appointments = loadAppointments();
@@ -112,47 +113,228 @@ export function findAvailableSlots(
   // ตรวจสอบการลา
   if (leaveData[dateKey]) {
     if (leaveData[dateKey].includes("ทำเด็กนักเรียน")) {
-      return false;
+      return [];
     }
     if (dentist !== "นัดทั่วไป" && dentist !== "เจ้าหน้าที่" && leaveData[dateKey].includes(dentist)) {
-      return false;
+      return [];
     }
   }
 
   // ตรวจสอบการประชุม
   if (meetingData[dateKey] && dentist !== "นัดทั่วไป" && dentist !== "เจ้าหน้าที่") {
     for (const meeting of meetingData[dateKey]) {
-      if (meeting.dentist === dentist) {
-        return false;
+      if (meeting.dentist === dentist && 
+          (period === 'all' || 
+           (period === 'morning' && meeting.period === 'morning') || 
+           (period === 'afternoon' && meeting.period === 'afternoon'))) {
+        return [];
       }
     }
   }
 
   let slots: string[] = [];
+  let morningSlots: string[] = [];
+  let afternoonSlots: string[] = [];
+
+  // กำหนดช่องเวลาตามระยะเวลาที่เลือก
   if (duration === "30min") {
-    slots = [
-      "9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00",
-      "13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"
-    ];
+    morningSlots = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
+    afternoonSlots = ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
   } else if (duration === "1hour") {
-    slots = [
-      "9:00-10:00", "10:00-11:00",
-      "13:00-14:00", "14:00-15:00"
-    ];
+    morningSlots = ["9:00-10:00", "10:00-11:00"];
+    afternoonSlots = ["13:00-14:00", "14:00-15:00"];
   } else if (duration === "2hours") {
-    slots = ["9:00-11:00", "13:00-15:00"];
+    morningSlots = ["9:00-11:00"];
+    afternoonSlots = ["13:00-15:00"];
   }
 
-  // ตรวจสอบว่า selectedTime ว่างหรือไม่
-  if (selectedTime && !slots.includes(selectedTime)) {
-    return false; // ถ้า time ไม่ตรงกับ slots ที่ duration รองรับ
+  // กรองช่องเวลาตามช่วงที่เลือก
+  if (period === 'morning' || period === 'all') {
+    // เฉพาะเช้าวันศุกร์และไม่ใช่ช่วงเช้าวันจันทร์-พฤหัส 9:00-10:00
+    if (dayOfWeek === 5 || dayOfWeek === 0 || dayOfWeek === 6) {
+      slots = [...slots, ...morningSlots];
+    } else if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      // วันจันทร์-พฤหัส ไม่รวม 9:00-10:00
+      slots = [...slots, ...morningSlots.filter(slot => !["9:00-9:30", "9:30-10:00", "9:00-10:00", "9:00-11:00"].includes(slot))];
+    }
   }
 
-  if (selectedTime && ["9:00-9:30", "9:30-10:00"].includes(selectedTime) && dayOfWeek >= 1 && dayOfWeek <= 4) {
-    return false; // จำกัดช่วงเช้าวันจันทร์-พฤหัส
+  if (period === 'afternoon' || period === 'all') {
+    slots = [...slots, ...afternoonSlots];
   }
 
-  return !(appointments[dateKey] && 
-           appointments[dateKey][selectedTime as string] && 
-           appointments[dateKey][selectedTime as string].length > 0);
+  // ถ้ามีการระบุเวลาที่ต้องการ
+  if (selectedTime) {
+    if (!slots.includes(selectedTime)) {
+      return []; // ถ้า time ไม่ตรงกับ slots ที่ duration รองรับ
+    }
+    
+    // ตรวจสอบว่า slot ว่างหรือไม่
+    if (isSlotAvailable(dateKey, selectedTime, appointments)) {
+      // ตรวจสอบเพิ่มเติมสำหรับระยะเวลาที่ยาวกว่า 30 นาที
+      if (duration === "1hour" || duration === "2hours") {
+        const relatedSlots = getRelatedTimeSlots(selectedTime, duration);
+        let allSlotsAvailable = true;
+        
+        for (const slot of relatedSlots) {
+          if (!isSlotAvailable(dateKey, slot, appointments)) {
+            allSlotsAvailable = false;
+            break;
+          }
+        }
+        
+        if (allSlotsAvailable) {
+          return [selectedTime];
+        }
+      } else {
+        return [selectedTime];
+      }
+    }
+    
+    return [];
+  }
+
+  // กรณีไม่ระบุเวลา จะค้นหาช่องว่างทั้งหมด
+  const availableSlots = slots.filter(slot => {
+    // ตรวจสอบว่า slot หลักว่างหรือไม่
+    if (!isSlotAvailable(dateKey, slot, appointments)) {
+      return false;
+    }
+    
+    // ตรวจสอบเพิ่มเติมสำหรับระยะเวลาที่ยาวกว่า 30 นาที
+    if (duration === "1hour" || duration === "2hours") {
+      const relatedSlots = getRelatedTimeSlots(slot, duration);
+      let allSlotsAvailable = true;
+      
+      for (const relatedSlot of relatedSlots) {
+        if (!isSlotAvailable(dateKey, relatedSlot, appointments)) {
+          allSlotsAvailable = false;
+          break;
+        }
+      }
+      
+      return allSlotsAvailable;
+    }
+    
+    return true;
+  });
+
+  return availableSlots;
+}
+
+// ตรวจสอบว่า slot ว่างหรือไม่
+function isSlotAvailable(dateKey: string, slot: string, appointments: Record<string, Record<string, Appointment[]>>): boolean {
+  return !(appointments[dateKey] && appointments[dateKey][slot] && appointments[dateKey][slot].length > 0);
+}
+
+// รับช่องเวลาที่เกี่ยวข้องตามระยะเวลา
+export function getRelatedTimeSlots(slot: string, duration: string): string[] {
+  // สำหรับการนัด 30 นาที
+  if (duration === "30min") {
+    return [slot];
+  }
+
+  // สำหรับการนัด 1 ชั่วโมง
+  if (duration === "1hour") {
+    if (slot === "9:00-10:00") return ["9:00-9:30", "9:30-10:00"];
+    if (slot === "10:00-11:00") return ["10:00-10:30", "10:30-11:00"];
+    if (slot === "13:00-14:00") return ["13:00-13:30", "13:30-14:00"];
+    if (slot === "14:00-15:00") return ["14:00-14:30", "14:30-15:00"];
+    
+    // กรณีเลือกช่วงเวลา 30 นาที แล้วต้องการนัด 1 ชั่วโมง
+    if (slot === "9:00-9:30") return ["9:00-9:30", "9:30-10:00"];
+    if (slot === "9:30-10:00") return ["9:00-9:30", "9:30-10:00"];
+    if (slot === "10:00-10:30") return ["10:00-10:30", "10:30-11:00"];
+    if (slot === "10:30-11:00") return ["10:00-10:30", "10:30-11:00"];
+    if (slot === "13:00-13:30") return ["13:00-13:30", "13:30-14:00"];
+    if (slot === "13:30-14:00") return ["13:00-13:30", "13:30-14:00"];
+    if (slot === "14:00-14:30") return ["14:00-14:30", "14:30-15:00"];
+    if (slot === "14:30-15:00") return ["14:00-14:30", "14:30-15:00"];
+  }
+
+  // สำหรับการนัด 2 ชั่วโมง
+  if (duration === "2hours") {
+    if (slot === "9:00-11:00") return ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
+    if (slot === "13:00-15:00") return ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
+    
+    // กรณีเลือกช่วงเวลา 30 นาที หรือ 1 ชม แล้วต้องการนัด 2 ชั่วโมง
+    if (slot.startsWith("9:") || slot === "10:00-10:30") {
+      return ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
+    }
+    if (slot.startsWith("13:") || slot === "14:00-14:30") {
+      return ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
+    }
+  }
+
+  return [slot];
+}
+
+// บันทึกการนัดหมายพร้อมตรวจสอบกรณีมีหลายช่องเวลา
+export function saveAppointmentWithMultipleSlots(
+  dateKey: string, 
+  timeSlot: string, 
+  appointment: Appointment
+): void {
+  const appointments = loadAppointments();
+  const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
+  
+  // บันทึกการนัดในทุกช่องเวลาที่เกี่ยวข้อง
+  for (const slot of relatedSlots) {
+    appointments[dateKey] = appointments[dateKey] || {};
+    appointments[dateKey][slot] = appointments[dateKey][slot] || [];
+    appointments[dateKey][slot].push({...appointment});
+  }
+  
+  saveAppointments(appointments);
+}
+
+// แก้ไขการนัดหมายทุกช่องเวลาที่เกี่ยวข้อง
+export function updateAppointmentInAllSlots(
+  dateKey: string,
+  timeSlot: string,
+  oldAppointment: Appointment,
+  newAppointment: Appointment
+): void {
+  const appointments = loadAppointments();
+  
+  // ลบข้อมูลเก่าจากทุกช่องเวลา
+  deleteAppointmentFromAllSlots(dateKey, timeSlot, oldAppointment);
+  
+  // บันทึกข้อมูลใหม่
+  saveAppointmentWithMultipleSlots(dateKey, timeSlot, newAppointment);
+  
+  saveAppointments(appointments);
+}
+
+// ลบการนัดหมายจากทุกช่องเวลาที่เกี่ยวข้อง
+export function deleteAppointmentFromAllSlots(
+  dateKey: string,
+  timeSlot: string,
+  appointment: Appointment
+): void {
+  const appointments = loadAppointments();
+  const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
+  
+  // ลบการนัดในทุกช่องเวลาที่เกี่ยวข้อง
+  for (const slot of relatedSlots) {
+    if (appointments[dateKey] && appointments[dateKey][slot]) {
+      // ลบการนัดที่ตรงกับข้อมูลที่ระบุ
+      appointments[dateKey][slot] = appointments[dateKey][slot].filter(appt => 
+        !(appt.patient === appointment.patient && 
+          appt.dentist === appointment.dentist && 
+          appt.phone === appointment.phone));
+      
+      // ลบช่องเวลาที่ว่างเปล่า
+      if (appointments[dateKey][slot].length === 0) {
+        delete appointments[dateKey][slot];
+      }
+    }
+  }
+  
+  // ลบวันที่ที่ว่างเปล่า
+  if (appointments[dateKey] && Object.keys(appointments[dateKey]).length === 0) {
+    delete appointments[dateKey];
+  }
+  
+  saveAppointments(appointments);
 }

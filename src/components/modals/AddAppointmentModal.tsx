@@ -3,7 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { loadAppointments, saveAppointments, findAvailableSlots } from '@/lib/data-utils';
+import { 
+  loadAppointments, 
+  saveAppointments, 
+  findAvailableSlots, 
+  saveAppointmentWithMultipleSlots 
+} from '@/lib/data-utils';
 import { Appointment } from '@/types/appointment';
 
 interface AddAppointmentModalProps {
@@ -45,13 +50,9 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
     e.preventDefault();
     
     const dateObj = new Date(data.date);
-    const isSlotAvailable = findAvailableSlots(dateObj, duration, dentist, data.time);
+    const availableSlots = findAvailableSlots(dateObj, duration, dentist, data.time);
 
-    if (isSlotAvailable) {
-      const appointments = loadAppointments();
-      appointments[data.date] = appointments[data.date] || {};
-      appointments[data.date][data.time] = appointments[data.date][data.time] || [];
-      
+    if (availableSlots.length > 0) {
       const newAppointment: Appointment = {
         dentist,
         duration,
@@ -61,8 +62,8 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
         status: "รอการยืนยันนัด"
       };
       
-      appointments[data.date][data.time].push(newAppointment);
-      saveAppointments(appointments);
+      // ใช้ฟังก์ชันใหม่ที่บันทึกข้อมูลในทุกช่องเวลาที่เกี่ยวข้อง
+      saveAppointmentWithMultipleSlots(data.date, data.time, newAppointment);
       
       resetForm();
       onClose();
