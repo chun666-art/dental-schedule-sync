@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { findAvailableSlots, saveAppointmentWithMultipleSlots, dateToKey } from '@/lib/data-utils';
 import { formatDate } from '@/lib/date-utils';
 import { Appointment } from '@/types/appointment';
+import { useToast } from '@/hooks/use-toast';
 
 interface NextAppointmentModalProps {
   isOpen: boolean;
@@ -28,9 +29,19 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
   const [hasSearched, setHasSearched] = useState<boolean>(false);
   const [confirmBooking, setConfirmBooking] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!dentist) {
+      toast({
+        title: "กรุณาเลือกหมอฟัน",
+        description: "กรุณาเลือกหมอฟันก่อนค้นหาคิว",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // เริ่มค้นหาจากวันที่ปัจจุบัน + จำนวนวันที่ต้องการรอ
     const startDate = new Date();
@@ -59,6 +70,11 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
     }
     
     if (!foundSlot) {
+      toast({
+        title: "ไม่พบคิวว่าง",
+        description: "ไม่พบคิวว่างในช่วงเวลาที่ต้องการภายใน 60 วัน",
+        variant: "destructive",
+      });
       setAvailableSlots([]);
       setAvailableDate(null);
       setSelectedSlot(null);
@@ -81,21 +97,36 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
         status: "รอการยืนยันนัด"
       };
       
-      // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
-      saveAppointmentWithMultipleSlots(dateKey, selectedSlot, newAppointment);
-      
-      // พาไปหน้าสัปดาห์ที่มีการนัด
-      const appointmentWeekStart = new Date(availableDate);
-      const day = appointmentWeekStart.getDay();
-      const diff = appointmentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
-      appointmentWeekStart.setDate(diff);
-      
-      // จัดเก็บข้อมูลวันที่เริ่มต้นของสัปดาห์สำหรับการแสดงผล
-      localStorage.setItem('currentWeekStart', appointmentWeekStart.toISOString());
-      localStorage.setItem('currentView', 'week');
-      
-      onClose();
-      window.location.reload(); // รีโหลดหน้าเพื่อแสดงผลตารางสัปดาห์ที่มีการนัด
+      try {
+        // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
+        saveAppointmentWithMultipleSlots(dateKey, selectedSlot, newAppointment);
+        
+        toast({
+          title: "บันทึกนัดหมายสำเร็จ",
+          description: `บันทึกนัดหมายวันที่ ${formatDate(availableDate)} เวลา ${selectedSlot} เรียบร้อยแล้ว`,
+          variant: "default",
+        });
+        
+        // พาไปหน้าสัปดาห์ที่มีการนัด
+        const appointmentWeekStart = new Date(availableDate);
+        const day = appointmentWeekStart.getDay();
+        const diff = appointmentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
+        appointmentWeekStart.setDate(diff);
+        
+        // จัดเก็บข้อมูลวันที่เริ่มต้นของสัปดาห์สำหรับการแสดงผล
+        localStorage.setItem('currentWeekStart', appointmentWeekStart.toISOString());
+        localStorage.setItem('currentView', 'week');
+        
+        onClose();
+        window.location.reload(); // รีโหลดหน้าเพื่อแสดงผลตารางสัปดาห์ที่มีการนัด
+      } catch (error) {
+        console.error('Error booking appointment:', error);
+        toast({
+          title: "เกิดข้อผิดพลาด",
+          description: "ไม่สามารถบันทึกนัดหมายได้ กรุณาลองใหม่อีกครั้ง",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -120,6 +151,9 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>ค้นหาคิวนัดคนไข้ใหม่</DialogTitle>
+          <DialogDescription>
+            กรอกข้อมูลเพื่อค้นหาคิวนัดหมายที่ว่าง
+          </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
@@ -186,7 +220,6 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
               className="p-2 border rounded"
               required
             >
-              <option value="">เลือกระยะเวลา</option>
               <option value="30min">30 นาที</option>
               <option value="1hour">1 ชั่วโมง</option>
               <option value="2hours">2 ชั่วโมง</option>
@@ -227,7 +260,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
               {availableDate && availableSlots.length > 0 ? (
                 <div>
                   <p className="text-green-600">พบคิวว่าง:</p>
-                  <p>วันที่: {formatDate(availableDate)}</p>
+                  <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
                   <div className="mt-2">
                     <Label htmlFor="available-slots">เลือกเวลา:</Label>
                     <select

@@ -95,13 +95,13 @@ export function checkAndCleanupData(): void {
   }
 }
 
-// ตรวจสอบว่า slot ว่างสำหรับการนัดหมายหรือไม่ และค้นหาช่องเวลาที่ว่าง
+// ค้นหาช่องเวลาที่ว่าง
 export function findAvailableSlots(
   date: Date,
   duration: string,
   dentist: string,
   selectedTime?: string,
-  period?: 'morning' | 'afternoon' | 'all'
+  period: 'morning' | 'afternoon' | 'all' = 'all'
 ): string[] {
   const dateKey = dateToKey(date);
   const dayOfWeek = date.getDay();
@@ -131,6 +131,7 @@ export function findAvailableSlots(
     }
   }
 
+  // ช่องเวลาที่สามารถนัดได้
   let slots: string[] = [];
   let morningSlots: string[] = [];
   let afternoonSlots: string[] = [];
@@ -277,6 +278,8 @@ export function saveAppointmentWithMultipleSlots(
   const appointments = loadAppointments();
   const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
   
+  console.log('Saving appointment for slots:', relatedSlots, 'duration:', appointment.duration);
+  
   // บันทึกการนัดในทุกช่องเวลาที่เกี่ยวข้อง
   for (const slot of relatedSlots) {
     appointments[dateKey] = appointments[dateKey] || {};
@@ -313,6 +316,8 @@ export function deleteAppointmentFromAllSlots(
 ): void {
   const appointments = loadAppointments();
   const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
+  
+  console.log('Deleting appointment from slots:', relatedSlots);
   
   // ลบการนัดในทุกช่องเวลาที่เกี่ยวข้อง
   for (const slot of relatedSlots) {

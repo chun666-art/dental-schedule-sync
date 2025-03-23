@@ -34,6 +34,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
   ];
 
   const handleAddClick = (dateKey: string, time: string) => {
+    console.log('handleAddClick:', { dateKey, time });
     setModalData({ date: dateKey, time });
     setIsAddModalOpen(true);
   };
@@ -231,9 +232,9 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
               date.setDate(date.getDate() + dayOffset);
               
               if (rowIndex === 0) {
-                return renderLeaveCell(date);
+                return <React.Fragment key={dayOffset}>{renderLeaveCell(date)}</React.Fragment>;
               } else {
-                return renderAppointmentCell(date, time);
+                return <React.Fragment key={dayOffset}>{renderAppointmentCell(date, time)}</React.Fragment>;
               }
             })}
           </tr>

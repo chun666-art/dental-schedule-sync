@@ -38,6 +38,7 @@ const ScheduleTodayTable: React.FC<ScheduleTodayTableProps> = ({
   ];
 
   const handleAddClick = (time: string) => {
+    console.log('handleAddClick in today view:', { date: dateKey, time });
     setModalData({ date: dateKey, time });
     setIsAddModalOpen(true);
   };
