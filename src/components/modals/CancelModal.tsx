@@ -2,7 +2,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { loadAppointments, saveAppointments, findAvailableSlots, dateToKey } from '@/lib/data-utils';
+import { loadAppointments, saveAppointments, findAvailableSlots, dateToKey, getRelatedTimeSlots } from '@/lib/data-utils';
 import { CancelTarget } from '@/types/appointment';
 
 interface CancelModalProps {

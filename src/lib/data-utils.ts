@@ -1,4 +1,3 @@
-
 import { dateToKey } from './date-utils';
 import { Appointment, MeetingRecord, DentistRecord, CancelTarget } from '@/types/appointment';
 
@@ -338,3 +337,6 @@ export function deleteAppointmentFromAllSlots(
   
   saveAppointments(appointments);
 }
+
+// Re-export dateToKey from date-utils so it can be imported from this module
+export { dateToKey };
