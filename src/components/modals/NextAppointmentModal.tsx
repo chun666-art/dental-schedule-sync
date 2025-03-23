@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { findAvailableSlots, saveAppointmentWithMultipleSlots, dateToKey } from '@/lib/data-utils';
 import { formatDate } from '@/lib/date-utils';
 import { Appointment } from '@/types/appointment';
@@ -156,170 +157,172 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid gap-2">
-            <Label htmlFor="next-dentist">เลือกหมอฟัน:</Label>
-            <select
-              id="next-dentist"
-              value={dentist}
-              onChange={(e) => setDentist(e.target.value)}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="">เลือกหมอฟัน</option>
-              <option value="DC">DC</option>
-              <option value="DD">DD</option>
-              <option value="DPa">DPa</option>
-              <option value="DPu">DPu</option>
-              <option value="DT">DT</option>
-            </select>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-patient">ชื่อคนไข้:</Label>
-            <input
-              type="text"
-              id="next-patient"
-              value={patient}
-              onChange={(e) => setPatient(e.target.value)}
-              className="p-2 border rounded"
-              placeholder="ชื่อคนไข้"
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-phone">เบอร์โทร:</Label>
-            <input
-              type="tel"
-              id="next-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="p-2 border rounded"
-              placeholder="เบอร์โทร"
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-treatment">การรักษา:</Label>
-            <input
-              type="text"
-              id="next-treatment"
-              value={treatment}
-              onChange={(e) => setTreatment(e.target.value)}
-              className="p-2 border rounded"
-              placeholder="การรักษา"
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-duration">ระยะเวลา:</Label>
-            <select
-              id="next-duration"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value as "30min" | "1hour" | "2hours")}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="30min">30 นาที</option>
-              <option value="1hour">1 ชั่วโมง</option>
-              <option value="2hours">2 ชั่วโมง</option>
-            </select>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-period">ช่วงเวลา:</Label>
-            <select
-              id="next-period"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon' | 'all')}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="all">ทั้งวัน</option>
-              <option value="morning">ช่วงเช้า</option>
-              <option value="afternoon">ช่วงบ่าย</option>
-            </select>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="next-delay">จำนวนวันที่ต้องการรอ:</Label>
-            <input
-              type="number"
-              id="next-delay"
-              value={delay}
-              onChange={(e) => setDelay(parseInt(e.target.value))}
-              className="p-2 border rounded"
-              placeholder="จำนวนวันที่ต้องการรอ"
-              min="0"
-            />
-          </div>
-          
-          {hasSearched && !confirmBooking && (
-            <div className="mt-4 p-3 bg-gray-100 rounded-md">
-              <h3 className="font-medium mb-2">ผลการค้นหา:</h3>
-              {availableDate && availableSlots.length > 0 ? (
-                <div>
-                  <p className="text-green-600">พบคิวว่าง:</p>
-                  <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
-                  <div className="mt-2">
-                    <Label htmlFor="available-slots">เลือกเวลา:</Label>
-                    <select
-                      id="available-slots"
-                      value={selectedSlot || ''}
-                      onChange={(e) => setSelectedSlot(e.target.value)}
-                      className="w-full p-2 border rounded mt-1"
+        <ScrollArea className="max-h-[60vh]">
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4 px-1">
+            <div className="grid gap-2">
+              <Label htmlFor="next-dentist">เลือกหมอฟัน:</Label>
+              <select
+                id="next-dentist"
+                value={dentist}
+                onChange={(e) => setDentist(e.target.value)}
+                className="p-2 border rounded"
+                required
+              >
+                <option value="">เลือกหมอฟัน</option>
+                <option value="DC">DC</option>
+                <option value="DD">DD</option>
+                <option value="DPa">DPa</option>
+                <option value="DPu">DPu</option>
+                <option value="DT">DT</option>
+              </select>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-patient">ชื่อคนไข้:</Label>
+              <input
+                type="text"
+                id="next-patient"
+                value={patient}
+                onChange={(e) => setPatient(e.target.value)}
+                className="p-2 border rounded"
+                placeholder="ชื่อคนไข้"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-phone">เบอร์โทร:</Label>
+              <input
+                type="tel"
+                id="next-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="p-2 border rounded"
+                placeholder="เบอร์โทร"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-treatment">การรักษา:</Label>
+              <input
+                type="text"
+                id="next-treatment"
+                value={treatment}
+                onChange={(e) => setTreatment(e.target.value)}
+                className="p-2 border rounded"
+                placeholder="การรักษา"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-duration">ระยะเวลา:</Label>
+              <select
+                id="next-duration"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value as "30min" | "1hour" | "2hours")}
+                className="p-2 border rounded"
+                required
+              >
+                <option value="30min">30 นาที</option>
+                <option value="1hour">1 ชั่วโมง</option>
+                <option value="2hours">2 ชั่วโมง</option>
+              </select>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-period">ช่วงเวลา:</Label>
+              <select
+                id="next-period"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon' | 'all')}
+                className="p-2 border rounded"
+                required
+              >
+                <option value="all">ทั้งวัน</option>
+                <option value="morning">ช่วงเช้า</option>
+                <option value="afternoon">ช่วงบ่าย</option>
+              </select>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="next-delay">จำนวนวันที่ต้องการรอ:</Label>
+              <input
+                type="number"
+                id="next-delay"
+                value={delay}
+                onChange={(e) => setDelay(parseInt(e.target.value))}
+                className="p-2 border rounded"
+                placeholder="จำนวนวันที่ต้องการรอ"
+                min="0"
+              />
+            </div>
+            
+            {hasSearched && !confirmBooking && (
+              <div className="mt-4 p-3 bg-gray-100 rounded-md">
+                <h3 className="font-medium mb-2">ผลการค้นหา:</h3>
+                {availableDate && availableSlots.length > 0 ? (
+                  <div>
+                    <p className="text-green-600">พบคิวว่าง:</p>
+                    <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
+                    <div className="mt-2">
+                      <Label htmlFor="available-slots">เลือกเวลา:</Label>
+                      <select
+                        id="available-slots"
+                        value={selectedSlot || ''}
+                        onChange={(e) => setSelectedSlot(e.target.value)}
+                        className="w-full p-2 border rounded mt-1"
+                      >
+                        {availableSlots.map((slot, index) => (
+                          <option key={index} value={slot}>
+                            {slot}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button 
+                      type="button" 
+                      onClick={() => setConfirmBooking(true)} 
+                      className="mt-2 w-full bg-green-500 hover:bg-green-600"
                     >
-                      {availableSlots.map((slot, index) => (
-                        <option key={index} value={slot}>
-                          {slot}
-                        </option>
-                      ))}
-                    </select>
+                      ยืนยันนัดคิวนี้
+                    </Button>
                   </div>
+                ) : (
+                  <p className="text-red-600">ไม่พบคิวว่างในวันที่เลือก</p>
+                )}
+              </div>
+            )}
+            
+            {confirmBooking && (
+              <div className="mt-4 p-3 bg-gray-100 rounded-md">
+                <h3 className="font-medium mb-2">ยืนยันการนัด:</h3>
+                <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
+                <p>เวลา: {selectedSlot}</p>
+                <div className="mt-2 flex space-x-2">
                   <Button 
                     type="button" 
-                    onClick={() => setConfirmBooking(true)} 
-                    className="mt-2 w-full bg-green-500 hover:bg-green-600"
+                    onClick={() => setConfirmBooking(false)} 
+                    className="flex-1 bg-red-500 hover:bg-red-600"
                   >
-                    ยืนยันนัดคิวนี้
+                    ยกเลิก
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={handleBook} 
+                    className="flex-1 bg-green-500 hover:bg-green-600"
+                  >
+                    ยืนยันนัด
                   </Button>
                 </div>
-              ) : (
-                <p className="text-red-600">ไม่พบคิวว่างในวันที่เลือก</p>
-              )}
-            </div>
-          )}
-          
-          {confirmBooking && (
-            <div className="mt-4 p-3 bg-gray-100 rounded-md">
-              <h3 className="font-medium mb-2">ยืนยันการนัด:</h3>
-              <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
-              <p>เวลา: {selectedSlot}</p>
-              <div className="mt-2 flex space-x-2">
-                <Button 
-                  type="button" 
-                  onClick={() => setConfirmBooking(false)} 
-                  className="flex-1 bg-red-500 hover:bg-red-600"
-                >
-                  ยกเลิก
-                </Button>
-                <Button 
-                  type="button" 
-                  onClick={handleBook} 
-                  className="flex-1 bg-green-500 hover:bg-green-600"
-                >
-                  ยืนยันนัด
-                </Button>
               </div>
-            </div>
-          )}
-          
-          <DialogFooter>
-            {!confirmBooking && (
-              <Button type="submit">ค้นหา</Button>
             )}
-          </DialogFooter>
-        </form>
+          </form>
+        </ScrollArea>
+        
+        <DialogFooter>
+          {!confirmBooking && (
+            <Button type="button" onClick={handleSubmit}>ค้นหา</Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
