@@ -12,7 +12,7 @@ import LeaveModal from '@/components/modals/LeaveModal';
 import MeetingModal from '@/components/modals/MeetingModal';
 import DentistsModal from '@/components/modals/DentistsModal';
 import CancelModal from '@/components/modals/CancelModal';
-import { getMonday, formatDate } from '@/lib/date-utils';
+import { getMonday, formatDate, isWeekend, getNextMonday } from '@/lib/date-utils';
 import { checkAndCleanupData } from '@/lib/data-utils';
 
 const Index = () => {
@@ -38,10 +38,28 @@ const Index = () => {
   useEffect(() => {
     checkAndCleanupData();
     
+    // ตรวจสอบว่ามีการบันทึกข้อมูลสัปดาห์ไว้ใน localStorage หรือไม่
+    const savedWeekStart = localStorage.getItem('currentWeekStart');
+    const savedView = localStorage.getItem('currentView');
+    
+    if (savedWeekStart) {
+      setCurrentWeekStart(new Date(savedWeekStart));
+    }
+    
+    if (savedView === 'week' || savedView === 'today') {
+      setCurrentView(savedView);
+    }
+    
     if (currentView === 'week') {
       updateWeekIndicator();
     } else {
-      setWeekIndicator(formatDate(new Date()));
+      const today = new Date();
+      if (isWeekend(today)) {
+        const nextMonday = getNextMonday(today);
+        setWeekIndicator(formatDate(nextMonday));
+      } else {
+        setWeekIndicator(formatDate(today));
+      }
     }
   }, [currentView, currentWeekStart]);
 
@@ -58,6 +76,10 @@ const Index = () => {
     newDate.setDate(newDate.getDate() - 7);
     setCurrentWeekStart(newDate);
     setCurrentView('week');
+    
+    // บันทึกการเปลี่ยนแปลง
+    localStorage.setItem('currentWeekStart', newDate.toISOString());
+    localStorage.setItem('currentView', 'week');
   };
 
   const handleNextWeek = () => {
@@ -65,19 +87,36 @@ const Index = () => {
     newDate.setDate(newDate.getDate() + 7);
     setCurrentWeekStart(newDate);
     setCurrentView('week');
+    
+    // บันทึกการเปลี่ยนแปลง
+    localStorage.setItem('currentWeekStart', newDate.toISOString());
+    localStorage.setItem('currentView', 'week');
   };
 
   const handleCurrentWeek = () => {
-    setCurrentWeekStart(getMonday(new Date()));
+    const today = new Date();
+    const monday = isWeekend(today) ? getNextMonday(today) : getMonday(today);
+    setCurrentWeekStart(monday);
     setCurrentView('week');
+    
+    // บันทึกการเปลี่ยนแปลง
+    localStorage.setItem('currentWeekStart', monday.toISOString());
+    localStorage.setItem('currentView', 'week');
   };
 
   const handleTodaySchedule = () => {
     setCurrentView('today');
+    
+    // บันทึกการเปลี่ยนแปลง
+    localStorage.setItem('currentView', 'today');
   };
 
   const handleWeekSelectorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCurrentWeekStart(new Date(e.target.value));
+    const newDate = new Date(e.target.value);
+    setCurrentWeekStart(newDate);
+    
+    // บันทึกการเปลี่ยนแปลง
+    localStorage.setItem('currentWeekStart', newDate.toISOString());
   };
 
   return (

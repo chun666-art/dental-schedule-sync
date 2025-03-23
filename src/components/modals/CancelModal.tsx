@@ -42,22 +42,19 @@ const CancelModal: React.FC<CancelModalProps> = ({
           
           console.log('Attempting to cancel appointment:', { date, time, duration, relatedSlots });
           
+          // ลบการนัดในทุกช่องเวลาที่เกี่ยวข้อง โดยจับคู่ด้วย patient, dentist, phone
           for (const slot of relatedSlots) {
             if (appointments[date] && appointments[date][slot]) {
-              // หาตำแหน่งที่ตรงกับข้อมูลที่ต้องการลบ
-              const slotIndex = appointments[date][slot].findIndex(a => 
-                a.patient === appt.patient && 
-                a.dentist === appt.dentist && 
-                a.phone === appt.phone);
+              // กรองเอาเฉพาะรายการที่ไม่ตรงกับข้อมูลที่ต้องการลบ
+              appointments[date][slot] = appointments[date][slot].filter(a => 
+                !(a.patient === appt.patient && 
+                  a.dentist === appt.dentist && 
+                  a.phone === appt.phone &&
+                  a.treatment === appt.treatment));
               
-              if (slotIndex !== -1) {
-                console.log(`Found match in slot ${slot} at index ${slotIndex}`);
-                appointments[date][slot].splice(slotIndex, 1);
-                
-                // ลบช่องเวลาที่ว่างเปล่า
-                if (appointments[date][slot].length === 0) {
-                  delete appointments[date][slot];
-                }
+              // ลบช่องเวลาที่ว่างเปล่า
+              if (appointments[date][slot].length === 0) {
+                delete appointments[date][slot];
               }
             }
           }

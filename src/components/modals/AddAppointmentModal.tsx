@@ -8,7 +8,8 @@ import {
   loadAppointments, 
   saveAppointments, 
   findAvailableSlots, 
-  saveAppointmentWithMultipleSlots 
+  saveAppointmentWithMultipleSlots,
+  loadLeaveData
 } from '@/lib/data-utils';
 import { Appointment } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
@@ -33,13 +34,48 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
   const [patient, setPatient] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [treatment, setTreatment] = useState<string>('');
+  const [availableDentists, setAvailableDentists] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
       resetForm();
+      
+      // ตรวจสอบว่าเป็นช่วงเช้าของวันจันทร์ถึงพฤหัสบดีหรือไม่
+      if (data.date && data.time) {
+        const date = new Date(data.date);
+        const dayOfWeek = date.getDay();
+        const timeSlot = data.time;
+        const isMorningSlot = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"].includes(timeSlot);
+        const isMonToThu = dayOfWeek >= 1 && dayOfWeek <= 4;
+        
+        // ตรวจสอบว่าเป็นช่วงเช้าวันจันทร์-พฤหัสหรือไม่
+        if (isMorningSlot && isMonToThu) {
+          setAvailableDentists(["DC", "DD", "DPa", "DPu", "DT"]);
+          
+          // ถ้าเป็นช่วง 9:00-10:00 วันจันทร์-พฤหัส ต้องไม่มี "นัดทั่วไป" และ "เจ้าหน้าที่"
+          if (["9:00-9:30", "9:30-10:00"].includes(timeSlot)) {
+            setAvailableDentists(["DC", "DD", "DPa", "DPu", "DT"]);
+          } else {
+            setAvailableDentists(["DC", "DD", "DPa", "DPu", "DT", "นัดทั่วไป", "เจ้าหน้าที่"]);
+          }
+        } else if (isMorningSlot && dayOfWeek === 5) {
+          // ช่วงเช้าวันศุกร์
+          setAvailableDentists(["DC", "DD", "DPa", "DPu", "DT"]);
+        } else {
+          // ช่วงบ่ายทุกวัน
+          setAvailableDentists(["DC", "DD", "DPa", "DPu", "DT"]);
+        }
+        
+        // ตรวจสอบการลาของหมอ
+        const leaveData = loadLeaveData();
+        if (leaveData[data.date]) {
+          const leavingDentists = leaveData[data.date];
+          setAvailableDentists(prev => prev.filter(d => !leavingDentists.includes(d)));
+        }
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, data]);
 
   const resetForm = () => {
     setDentist('');
@@ -107,7 +143,7 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>เพิ่มนัดหมาย {data.date ? `วันที่ ${data.date}` : ''} {data.time ? `เวลา ${data.time}` : ''}</DialogTitle>
         </DialogHeader>
@@ -127,13 +163,9 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
                 required
               >
                 <option value="">เลือกหมอฟัน</option>
-                <option value="DC">DC</option>
-                <option value="DD">DD</option>
-                <option value="DPa">DPa</option>
-                <option value="DPu">DPu</option>
-                <option value="DT">DT</option>
-                <option value="นัดทั่วไป">นัดทั่วไป</option>
-                <option value="เจ้าหน้าที่">เจ้าหน้าที่</option>
+                {availableDentists.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
             </div>
             

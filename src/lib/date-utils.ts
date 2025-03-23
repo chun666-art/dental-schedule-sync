@@ -9,6 +9,25 @@ export function getMonday(date: Date): Date {
   return new Date(d.setDate(diff));
 }
 
+// หาวันจันทร์ของสัปดาห์หน้า (สำหรับกรณีวันนี้เป็นเสาร์หรืออาทิตย์)
+export function getNextMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  
+  // ถ้าเป็นเสาร์หรืออาทิตย์ ให้หาวันจันทร์ถัดไป
+  if (day === 0) { // อาทิตย์
+    const diff = d.getDate() + 1;
+    return new Date(d.setDate(diff));
+  } else if (day === 6) { // เสาร์
+    const diff = d.getDate() + 2;
+    return new Date(d.setDate(diff));
+  } else {
+    // ถ้าเป็นวันธรรมดา ให้หาวันจันทร์ของสัปดาห์หน้า
+    const diff = d.getDate() - day + 8;
+    return new Date(d.setDate(diff));
+  }
+}
+
 // จัดรูปแบบวันที่เป็นข้อความ
 export function formatDate(date: Date): string {
   return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -26,6 +45,12 @@ export function isPastDate(date: Date): boolean {
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
   return compareDate < today;
+}
+
+// ตรวจสอบว่าเป็นวันหยุดสุดสัปดาห์หรือไม่
+export function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 0 || day === 6; // 0 = อาทิตย์, 6 = เสาร์
 }
 
 // แปลง hex color เป็น RGB

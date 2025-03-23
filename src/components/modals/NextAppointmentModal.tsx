@@ -4,7 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogD
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { findAvailableSlots, saveAppointmentWithMultipleSlots, dateToKey } from '@/lib/data-utils';
+import { 
+  findAvailableSlots, 
+  saveAppointmentWithMultipleSlots, 
+  dateToKey, 
+  loadLeaveData
+} from '@/lib/data-utils';
 import { formatDate } from '@/lib/date-utils';
 import { Appointment } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +29,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
   const [treatment, setTreatment] = useState<string>('');
   const [duration, setDuration] = useState<"30min" | "1hour" | "2hours">("30min");
   const [delay, setDelay] = useState<number>(0);
-  const [period, setPeriod] = useState<'morning' | 'afternoon' | 'all'>('all');
+  const [period, setPeriod] = useState<'morning' | 'afternoon'>('morning');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [availableDate, setAvailableDate] = useState<Date | null>(null);
   const [hasSearched, setHasSearched] = useState<boolean>(false);
@@ -55,7 +60,34 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
     
     // ค้นหาไปเรื่อยๆ จนกว่าจะพบคิวว่าง หรือครบ 60 วัน
     for (let i = 0; i < 60; i++) {
-      foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, period);
+      const leaveData = loadLeaveData();
+      const dateKey = dateToKey(searchDate);
+      
+      // ตรวจสอบว่าหมอลาในวันนี้หรือไม่
+      if (leaveData[dateKey] && leaveData[dateKey].includes(dentist)) {
+        // ข้ามวันนี้เพราะหมอลา
+        searchDate = new Date(searchDate);
+        searchDate.setDate(searchDate.getDate() + 1);
+        continue;
+      }
+      
+      const dayOfWeek = searchDate.getDay();
+      
+      // ตรวจสอบตามเงื่อนไขใหม่
+      if (period === 'morning') {
+        // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
+        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+        } else if (dayOfWeek === 5) {
+          // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
+          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+        }
+      } else if (period === 'afternoon') {
+        // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+        }
+      }
       
       if (foundSlots.length > 0) {
         foundSlot = true;
@@ -135,7 +167,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
     setDentist('');
     setDuration("30min");
     setDelay(0);
-    setPeriod('all');
+    setPeriod('morning');
     setPatient('');
     setPhone('');
     setTreatment('');
@@ -149,7 +181,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseWithReset}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>ค้นหาคิวนัดคนไข้ใหม่</DialogTitle>
           <DialogDescription>
@@ -167,6 +199,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 onChange={(e) => setDentist(e.target.value)}
                 className="p-2 border rounded"
                 required
+                disabled={confirmBooking}
               >
                 <option value="">เลือกหมอฟัน</option>
                 <option value="DC">DC</option>
@@ -186,6 +219,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 onChange={(e) => setPatient(e.target.value)}
                 className="p-2 border rounded"
                 placeholder="ชื่อคนไข้"
+                disabled={confirmBooking}
               />
             </div>
             
@@ -198,6 +232,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 onChange={(e) => setPhone(e.target.value)}
                 className="p-2 border rounded"
                 placeholder="เบอร์โทร"
+                disabled={confirmBooking}
               />
             </div>
             
@@ -210,6 +245,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 onChange={(e) => setTreatment(e.target.value)}
                 className="p-2 border rounded"
                 placeholder="การรักษา"
+                disabled={confirmBooking}
               />
             </div>
             
@@ -221,6 +257,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 onChange={(e) => setDuration(e.target.value as "30min" | "1hour" | "2hours")}
                 className="p-2 border rounded"
                 required
+                disabled={confirmBooking}
               >
                 <option value="30min">30 นาที</option>
                 <option value="1hour">1 ชั่วโมง</option>
@@ -233,11 +270,11 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
               <select
                 id="next-period"
                 value={period}
-                onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon' | 'all')}
+                onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon')}
                 className="p-2 border rounded"
                 required
+                disabled={confirmBooking}
               >
-                <option value="all">ทั้งวัน</option>
                 <option value="morning">ช่วงเช้า</option>
                 <option value="afternoon">ช่วงบ่าย</option>
               </select>
@@ -253,6 +290,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 className="p-2 border rounded"
                 placeholder="จำนวนวันที่ต้องการรอ"
                 min="0"
+                disabled={confirmBooking}
               />
             </div>
             
@@ -297,6 +335,12 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
                 <h3 className="font-medium mb-2">ยืนยันการนัด:</h3>
                 <p>วันที่: {availableDate ? formatDate(availableDate) : ''}</p>
                 <p>เวลา: {selectedSlot}</p>
+                <p>ระยะเวลา: {
+                  duration === "30min" ? "30 นาที" : 
+                  duration === "1hour" ? "1 ชั่วโมง" : 
+                  "2 ชั่วโมง"
+                }</p>
+                <p>ช่วงเวลา: {period === "morning" ? "ช่วงเช้า" : "ช่วงบ่าย"}</p>
                 <div className="mt-2 flex space-x-2">
                   <Button 
                     type="button" 

@@ -76,6 +76,15 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
     const dayOfWeek = date.getDay();
     const isMorningSlot = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"].includes(time);
     const isRestrictedMorning = ["9:00-9:30", "9:30-10:00"].includes(time) && dayOfWeek >= 1 && dayOfWeek <= 4;
+    
+    // ตรวจสอบการลาของหมอในวันนี้
+    const leaveData = loadLeaveData();
+    const leavingDentists = leaveData[dateKey] || [];
+    
+    // กำหนดสีปุ่มเพิ่มตามข้อกำหนด
+    const addButtonColor = isMorningSlot 
+      ? (dayOfWeek === 5 ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600') 
+      : 'bg-green-500 hover:bg-green-600';
 
     return (
       <td className={`p-3 border-b ${isPast ? 'bg-gray-100' : ''}`}>
@@ -91,7 +100,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
             }}
           >
             <div>
-              {appt.dentist} - {appt.patient} ({appt.phone}) - {appt.treatment} ({appt.status})
+              {appt.dentist} - {appt.patient} ({appt.phone}) - {appt.treatment}
             </div>
             
             {appt.patient !== 'ลา' && !isPast && (
@@ -125,14 +134,11 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
           </div>
         ))}
         
-        {!isRestrictedMorning && !isPast && (
+        {!isRestrictedMorning && !isPast && leavingDentists.length === 0 && (
           <Button 
             variant="outline"
             size="sm"
-            className={isMorningSlot 
-              ? 'bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 text-xs' 
-              : 'bg-green-500 hover:bg-green-600 text-white px-3 py-1 text-xs'
-            }
+            className={`${addButtonColor} text-white px-3 py-1 text-xs`}
             onClick={() => handleAddClick(dateKey, time)}
           >
             +เพิ่ม

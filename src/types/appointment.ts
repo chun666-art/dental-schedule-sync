@@ -6,6 +6,7 @@ export interface Appointment {
   phone: string;
   treatment: string;
   status: "รอการยืนยันนัด" | "ยืนยันนัด" | "นัดถูกยกเลิก";
+  time?: string; // Optional field for some operations
 }
 
 export interface MeetingRecord {

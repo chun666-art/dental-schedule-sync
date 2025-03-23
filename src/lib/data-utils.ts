@@ -1,4 +1,5 @@
-import { dateToKey } from './date-utils';
+
+import { dateToKey, isWeekend } from './date-utils';
 import { Appointment, MeetingRecord, DentistRecord, CancelTarget } from '@/types/appointment';
 
 // ดึงข้อมูลการนัดหมายจาก localStorage
@@ -136,26 +137,22 @@ export function findAvailableSlots(
   let morningSlots: string[] = [];
   let afternoonSlots: string[] = [];
 
-  // กำหนดช่องเวลาตามระยะเวลาที่เลือก
-  if (duration === "30min") {
-    morningSlots = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
-    afternoonSlots = ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
-  } else if (duration === "1hour") {
-    morningSlots = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
-    afternoonSlots = ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
-  } else if (duration === "2hours") {
-    morningSlots = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
-    afternoonSlots = ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
-  }
+  // กำหนดช่วงเวลาตามตารางเวลาปกติ
+  morningSlots = ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
+  afternoonSlots = ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
 
   // กรองช่องเวลาตามช่วงที่เลือก
   if (period === 'morning' || period === 'all') {
-    // เฉพาะเช้าวันศุกร์และไม่ใช่ช่วงเช้าวันจันทร์-พฤหัส 9:00-10:00
-    if (dayOfWeek === 5 || dayOfWeek === 0 || dayOfWeek === 6) {
+    // วันศุกร์สามารถนัดได้ทั้งหมดในช่วงเช้า
+    if (dayOfWeek === 5) {
       slots = [...slots, ...morningSlots];
     } else if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-      // วันจันทร์-พฤหัส ไม่รวม 9:00-10:00
-      slots = [...slots, ...morningSlots.filter(slot => !["9:00-9:30", "9:30-10:00"].includes(slot))];
+      // วันจันทร์-พฤหัส ไม่รวม 9:00-10:00 ยกเว้นสำหรับหมอ
+      if (dentist === "นัดทั่วไป" || dentist === "เจ้าหน้าที่") {
+        slots = [...slots, ...morningSlots.filter(slot => !["9:00-9:30", "9:30-10:00"].includes(slot))];
+      } else {
+        slots = [...slots, ...morningSlots];
+      }
     }
   }
 
@@ -238,7 +235,6 @@ export function getRelatedTimeSlots(slot: string, duration: string): string[] {
     // กรณีเลือกช่วงเวลา 30 นาที แล้วต้องการนัด 2 ชั่วโมง
     if (slot === "9:00-9:30") return ["9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"];
     if (slot === "13:00-13:30") return ["13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"];
-    if (slot === "13:30-14:00") return ["13:30-14:00", "14:00-14:30", "14:30-15:00", "15:00-15:30"];
   }
 
   // กรณีอื่นๆ ส่งคืนช่องเวลาเดิม
@@ -302,6 +298,7 @@ export function deleteAppointmentFromAllSlots(
       appointments[dateKey][slot] = appointments[dateKey][slot].filter(appt => 
         !(appt.patient === appointment.patient && 
           appt.dentist === appointment.dentist && 
+          appt.treatment === appointment.treatment &&
           appt.phone === appointment.phone));
       
       // ลบช่องเวลาที่ว่างเปล่า
@@ -319,5 +316,35 @@ export function deleteAppointmentFromAllSlots(
   saveAppointments(appointments);
 }
 
+// ตรวจสอบการนัดหมายที่ได้รับผลกระทบจากการลาของหมอ
+export function findAffectedAppointmentsByLeave(dateKey: string, dentistName: string): Appointment[] {
+  const appointments = loadAppointments();
+  const affectedAppointments: Appointment[] = [];
+  
+  if (appointments[dateKey]) {
+    for (const timeSlot in appointments[dateKey]) {
+      for (const appt of appointments[dateKey][timeSlot]) {
+        if (appt.dentist === dentistName && !affectedAppointments.some(
+          a => a.patient === appt.patient && 
+               a.phone === appt.phone && 
+               a.treatment === appt.treatment)
+        ) {
+          affectedAppointments.push({...appt, time: timeSlot});
+        }
+      }
+    }
+  }
+  
+  return affectedAppointments;
+}
+
 // Re-export dateToKey from date-utils for use in other modules
 export { dateToKey };
+
+// แก้ไขเพิ่มเติมสำหรับ SupaBase connection
+export function getSupabaseConfig() {
+  return {
+    url: "https://oevsydwmwskbguqcrdeo.supabase.co",
+    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ldnN5ZHdtd3NrYmd1cWNyZGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2MDk1NjIsImV4cCI6MjA1ODE4NTU2Mn0.Ii8AwF7rfnNcqMhYjqH6MawIA_yRqmF8dcuNsH4267E"
+  };
+}
