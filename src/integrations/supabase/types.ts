@@ -9,6 +9,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          created_at: string
+          date: string
+          dentist: string
+          duration: string
+          id: string
+          patient: string
+          phone: string
+          status: string
+          time: string
+          treatment: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          dentist: string
+          duration: string
+          id?: string
+          patient: string
+          phone: string
+          status: string
+          time: string
+          treatment: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          dentist?: string
+          duration?: string
+          id?: string
+          patient?: string
+          phone?: string
+          status?: string
+          time?: string
+          treatment?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointmets: {
         Row: {
           created_at: string
@@ -21,6 +63,78 @@ export type Database = {
         Update: {
           created_at?: string
           id?: number
+        }
+        Relationships: []
+      }
+      dentists: {
+        Row: {
+          active: boolean
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          color: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      leave_records: {
+        Row: {
+          created_at: string
+          date: string
+          dentist: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          dentist: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          dentist?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      meeting_records: {
+        Row: {
+          created_at: string
+          date: string
+          dentist: string
+          id: string
+          period: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          dentist: string
+          id?: string
+          period: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          dentist?: string
+          id?: string
+          period?: string
         }
         Relationships: []
       }

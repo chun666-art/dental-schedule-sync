@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import ScheduleWeeklyTable from '@/components/ScheduleWeeklyTable';
 import ScheduleTodayTable from '@/components/ScheduleTodayTable';
 import AddAppointmentModal from '@/components/modals/AddAppointmentModal';
@@ -14,6 +15,7 @@ import DentistsModal from '@/components/modals/DentistsModal';
 import CancelModal from '@/components/modals/CancelModal';
 import { getMonday, formatDate, isWeekend, getNextMonday } from '@/lib/date-utils';
 import { checkAndCleanupData } from '@/lib/data-utils';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   // State for current view and date
@@ -36,20 +38,54 @@ const Index = () => {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
 
   useEffect(() => {
-    checkAndCleanupData();
+    const initializeApp = async () => {
+      try {
+        // ตรวจสอบการเชื่อมต่อกับ Supabase
+        const { data, error } = await supabase.from('appointments').select('count()', { count: 'exact', head: true });
+        
+        if (error) {
+          console.error('Supabase connection error:', error);
+          toast({
+            title: "ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้",
+            description: "กำลังใช้งานโหมดออฟไลน์",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "เชื่อมต่อกับฐานข้อมูลสำเร็จ",
+            description: "กำลังใช้งานข้อมูลจาก Supabase",
+            variant: "default",
+          });
+        }
+        
+        // ทำความสะอาดข้อมูลเก่า
+        await checkAndCleanupData();
+        
+        // ตรวจสอบว่ามีการบันทึกข้อมูลสัปดาห์ไว้ใน localStorage หรือไม่
+        const savedWeekStart = localStorage.getItem('currentWeekStart');
+        const savedView = localStorage.getItem('currentView');
+        
+        if (savedWeekStart) {
+          setCurrentWeekStart(new Date(savedWeekStart));
+        }
+        
+        if (savedView === 'week' || savedView === 'today') {
+          setCurrentView(savedView);
+        }
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        toast({
+          title: "เกิดข้อผิดพลาดในการโหลดข้อมูล",
+          description: "กรุณาลองใหม่อีกครั้ง",
+          variant: "destructive",
+        });
+      }
+    };
     
-    // ตรวจสอบว่ามีการบันทึกข้อมูลสัปดาห์ไว้ใน localStorage หรือไม่
-    const savedWeekStart = localStorage.getItem('currentWeekStart');
-    const savedView = localStorage.getItem('currentView');
-    
-    if (savedWeekStart) {
-      setCurrentWeekStart(new Date(savedWeekStart));
-    }
-    
-    if (savedView === 'week' || savedView === 'today') {
-      setCurrentView(savedView);
-    }
-    
+    initializeApp();
+  }, []);
+
+  useEffect(() => {
     if (currentView === 'week') {
       updateWeekIndicator();
     } else {
