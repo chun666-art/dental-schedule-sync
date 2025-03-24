@@ -51,21 +51,6 @@ export type Database = {
         }
         Relationships: []
       }
-      appointmets: {
-        Row: {
-          created_at: string
-          id: number
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-        }
-        Update: {
-          created_at?: string
-          id?: number
-        }
-        Relationships: []
-      }
       dentists: {
         Row: {
           active: boolean
@@ -168,6 +153,24 @@ export type Database = {
           dentist?: string
           id?: string
           period?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          username?: string
         }
         Relationships: []
       }

@@ -1,322 +1,169 @@
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Calendar, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import ScheduleWeeklyTable from '@/components/ScheduleWeeklyTable';
+import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
 import ScheduleTodayTable from '@/components/ScheduleTodayTable';
-import AddAppointmentModal from '@/components/modals/AddAppointmentModal';
-import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
-import NextAppointmentModal from '@/components/modals/NextAppointmentModal';
-import RebookModal from '@/components/modals/RebookModal';
-import LeaveModal from '@/components/modals/LeaveModal';
-import MeetingModal from '@/components/modals/MeetingModal';
-import DentistsModal from '@/components/modals/DentistsModal';
-import CancelModal from '@/components/modals/CancelModal';
-import { getMonday, formatDate, isWeekend, getNextMonday } from '@/lib/date-utils';
-import { checkAndCleanupData } from '@/lib/data-utils';
-import { supabase } from '@/integrations/supabase/client';
+import ScheduleWeeklyTable from '@/components/ScheduleWeeklyTable';
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import AddAppointmentModal from "@/components/modals/AddAppointmentModal";
+import DentistsModal from "@/components/modals/DentistsModal";
+import LeaveModal from "@/components/modals/LeaveModal";
+import MeetingModal from "@/components/modals/MeetingModal";
+import { loadDentists } from '@/lib/data-utils';
+import AuthCheck from '@/components/auth/AuthCheck';
+import NavBar from '@/components/NavBar';
 
 const Index = () => {
-  // State for current view and date
-  const [currentView, setCurrentView] = useState<'week' | 'today'>('week');
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getMonday(new Date()));
-  const [weekIndicator, setWeekIndicator] = useState<string>('');
-  
-  // State for modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isNextAppointmentModalOpen, setIsNextAppointmentModalOpen] = useState(false);
-  const [isRebookModalOpen, setIsRebookModalOpen] = useState(false);
-  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
-  const [isDentistsModalOpen, setIsDentistsModalOpen] = useState(false);
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  
-  // State for modal data
-  const [modalData, setModalData] = useState<any>({});
-  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [view, setView] = useState<'today' | 'week'>('today');
+  const [date, setDate] = useState(new Date());
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [dentistsModalOpen, setDentistsModalOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+  const [loadCounter, setLoadCounter] = useState(0);
+  const [dentists, setDentists] = useState<Record<string, string>>({});
 
+  // ดึงข้อมูลหมอเมื่อคอมโพเนนต์โหลด
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        // ตรวจสอบการเชื่อมต่อกับ Supabase
-        const { data, error } = await supabase.from('appointments').select('count()', { count: 'exact', head: true });
-        
-        if (error) {
-          console.error('Supabase connection error:', error);
-          toast({
-            title: "ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้",
-            description: "กำลังใช้งานโหมดออฟไลน์",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "เชื่อมต่อกับฐานข้อมูลสำเร็จ",
-            description: "กำลังใช้งานข้อมูลจาก Supabase",
-            variant: "default",
-          });
-        }
-        
-        // ทำความสะอาดข้อมูลเก่า
-        await checkAndCleanupData();
-        
-        // ตรวจสอบว่ามีการบันทึกข้อมูลสัปดาห์ไว้ใน localStorage หรือไม่
-        const savedWeekStart = localStorage.getItem('currentWeekStart');
-        const savedView = localStorage.getItem('currentView');
-        
-        if (savedWeekStart) {
-          setCurrentWeekStart(new Date(savedWeekStart));
-        }
-        
-        if (savedView === 'week' || savedView === 'today') {
-          setCurrentView(savedView);
-        }
-      } catch (error) {
-        console.error('Error initializing app:', error);
-        toast({
-          title: "เกิดข้อผิดพลาดในการโหลดข้อมูล",
-          description: "กรุณาลองใหม่อีกครั้ง",
-          variant: "destructive",
-        });
-      }
+    const fetchDentists = async () => {
+      const dentistsData = await loadDentists();
+      setDentists(dentistsData);
     };
     
-    initializeApp();
-  }, []);
+    fetchDentists();
+  }, [loadCounter]);
 
-  useEffect(() => {
-    if (currentView === 'week') {
-      updateWeekIndicator();
-    } else {
-      const today = new Date();
-      if (isWeekend(today)) {
-        const nextMonday = getNextMonday(today);
-        setWeekIndicator(formatDate(nextMonday));
-      } else {
-        setWeekIndicator(formatDate(today));
-      }
-    }
-  }, [currentView, currentWeekStart]);
-
-  const updateWeekIndicator = () => {
-    const monday = getMonday(currentWeekStart);
-    const year = monday.getFullYear();
-    const month = String(monday.getMonth() + 1).padStart(2, '0');
-    const day = String(monday.getDate()).padStart(2, '0');
-    setWeekIndicator(`${year}-${month}-${day}`);
+  // ฟังก์ชันสำหรับรีเฟรชข้อมูล
+  const refreshData = () => {
+    setLoadCounter(prev => prev + 1);
   };
-
-  const handlePrevWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() - 7);
-    setCurrentWeekStart(newDate);
-    setCurrentView('week');
-    
-    // บันทึกการเปลี่ยนแปลง
-    localStorage.setItem('currentWeekStart', newDate.toISOString());
-    localStorage.setItem('currentView', 'week');
-  };
-
-  const handleNextWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() + 7);
-    setCurrentWeekStart(newDate);
-    setCurrentView('week');
-    
-    // บันทึกการเปลี่ยนแปลง
-    localStorage.setItem('currentWeekStart', newDate.toISOString());
-    localStorage.setItem('currentView', 'week');
-  };
-
-  const handleCurrentWeek = () => {
-    const today = new Date();
-    const monday = isWeekend(today) ? getNextMonday(today) : getMonday(today);
-    setCurrentWeekStart(monday);
-    setCurrentView('week');
-    
-    // บันทึกการเปลี่ยนแปลง
-    localStorage.setItem('currentWeekStart', monday.toISOString());
-    localStorage.setItem('currentView', 'week');
-  };
-
-  const handleTodaySchedule = () => {
-    setCurrentView('today');
-    
-    // บันทึกการเปลี่ยนแปลง
-    localStorage.setItem('currentView', 'today');
-  };
-
-  const handleWeekSelectorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = new Date(e.target.value);
-    setCurrentWeekStart(newDate);
-    
-    // บันทึกการเปลี่ยนแปลง
-    localStorage.setItem('currentWeekStart', newDate.toISOString());
-  };
-
+  
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-6 bg-white p-4 rounded-lg shadow-lg border border-gray-100">
-        <div className="space-x-2">
-          <Button variant="outline" size="sm" onClick={handlePrevWeek}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant={currentView === 'week' ? 'default' : 'outline'} 
-            size="sm" 
-            onClick={handleCurrentWeek}
-          >
-            สัปดาห์นี้
-          </Button>
-          <Button 
-            variant={currentView === 'today' ? 'default' : 'outline'} 
-            size="sm" 
-            onClick={handleTodaySchedule}
-          >
-            วันนี้
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleNextWeek}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+    <AuthCheck>
+      <div className="container mx-auto p-4">
+        <NavBar />
+        
+        <div className="flex flex-col md:flex-row gap-4 items-start mb-6 mt-4">
+          <div className="flex-1">
+            <Tabs defaultValue="today" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger 
+                  value="today"
+                  onClick={() => setView('today')}
+                >
+                  วันนี้
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="week"
+                  onClick={() => setView('week')}
+                >
+                  รายสัปดาห์
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="today" className="mt-0">
+                <div className="text-2xl font-bold mb-4">
+                  ตารางนัดวันที่ {format(date, 'EEEE dd MMMM yyyy', { locale: th })}
+                </div>
+                <ScheduleTodayTable 
+                  date={date} 
+                  refreshTrigger={loadCounter} 
+                />
+              </TabsContent>
+              
+              <TabsContent value="week" className="mt-0">
+                <div className="text-2xl font-bold mb-4">
+                  ตารางนัดสัปดาห์
+                </div>
+                <ScheduleWeeklyTable 
+                  startDate={date} 
+                  refreshTrigger={loadCounter}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          
+          <div className="w-full md:w-auto">
+            <div className="bg-white rounded-lg shadow p-4 mb-4">
+              <h2 className="text-lg font-semibold mb-2">ปฏิทิน</h2>
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(newDate) => newDate && setDate(newDate)}
+                locale={th}
+                className="border rounded-md"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Button 
+                onClick={() => setAddModalOpen(true)} 
+                className="w-full text-white"
+              >
+                เพิ่มนัดหมาย
+              </Button>
+              
+              <Button 
+                onClick={() => setLeaveModalOpen(true)} 
+                variant="outline" 
+                className="w-full"
+              >
+                บันทึกการลา
+              </Button>
+              
+              <Button 
+                onClick={() => setMeetingModalOpen(true)} 
+                variant="outline" 
+                className="w-full"
+              >
+                บันทึกการประชุม
+              </Button>
+              
+              <Button 
+                onClick={() => setDentistsModalOpen(true)} 
+                variant="outline" 
+                className="w-full"
+              >
+                จัดการรายชื่อหมอ
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="text-lg font-medium text-gray-700">
-          {currentView === 'week' ? (
-            <input 
-              type="date" 
-              id="week-selector" 
-              value={weekIndicator} 
-              min="2024-01-01" 
-              max="2025-12-31" 
-              className="w-[130px]"
-              onChange={handleWeekSelectorChange}
-            />
-          ) : (
-            weekIndicator
-          )}
-        </div>
-      </header>
-
-      {/* Control Buttons */}
-      <div className="flex justify-end items-center mb-6 space-x-2">
-        <Button 
-          variant="outline" 
-          className="bg-purple-500 text-white hover:bg-purple-600"
-          onClick={() => setIsDentistsModalOpen(true)}
-        >
-          รายชื่อหมอ
-        </Button>
-        <Button 
-          variant="outline" 
-          className="bg-red-500 text-white hover:bg-red-600"
-          onClick={() => setIsLeaveModalOpen(true)}
-        >
-          <Plus className="h-4 w-4" />ลา
-        </Button>
-        <Button 
-          variant="outline" 
-          className="bg-blue-500 text-white hover:bg-blue-600"
-          onClick={() => setIsMeetingModalOpen(true)}
-        >
-          <Plus className="h-4 w-4" />ประชุม
-        </Button>
-        <Button 
-          variant="outline" 
-          className="bg-green-500 text-white hover:bg-green-600"
-          onClick={() => setIsNextAppointmentModalOpen(true)}
-        >
-          ค้นหาคิวนัดใหม่
-        </Button>
+        
+        {/* โมดัลต่างๆ */}
+        <AddAppointmentModal
+          isOpen={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          selectedDate={date}
+          onAppointmentAdded={refreshData}
+          dentists={Object.keys(dentists)}
+          currentView={view}
+          setCurrentView={setView}
+        />
+        
+        <DentistsModal
+          isOpen={dentistsModalOpen}
+          onClose={() => setDentistsModalOpen(false)}
+          onDentistsUpdated={refreshData}
+        />
+        
+        <LeaveModal
+          isOpen={leaveModalOpen}
+          onClose={() => setLeaveModalOpen(false)}
+          selectedDate={date}
+          onLeaveRecorded={refreshData}
+        />
+        
+        <MeetingModal
+          isOpen={meetingModalOpen}
+          onClose={() => setMeetingModalOpen(false)}
+          selectedDate={date}
+          onMeetingRecorded={refreshData}
+        />
       </div>
-
-      {/* Schedule Container */}
-      <div className="overflow-x-auto bg-white rounded-xl shadow-xl border border-gray-100">
-        {currentView === 'week' ? (
-          <ScheduleWeeklyTable 
-            currentWeekStart={currentWeekStart} 
-            setIsAddModalOpen={setIsAddModalOpen}
-            setIsEditModalOpen={setIsEditModalOpen}
-            setIsRebookModalOpen={setIsRebookModalOpen}
-            setIsCancelModalOpen={setIsCancelModalOpen}
-            setIsLeaveModalOpen={setIsLeaveModalOpen}
-            setIsMeetingModalOpen={setIsMeetingModalOpen}
-            setModalData={setModalData}
-            setCancelTarget={setCancelTarget}
-          />
-        ) : (
-          <ScheduleTodayTable 
-            setIsAddModalOpen={setIsAddModalOpen}
-            setIsEditModalOpen={setIsEditModalOpen}
-            setIsRebookModalOpen={setIsRebookModalOpen}
-            setIsCancelModalOpen={setIsCancelModalOpen}
-            setIsLeaveModalOpen={setIsLeaveModalOpen}
-            setIsMeetingModalOpen={setIsMeetingModalOpen}
-            setModalData={setModalData}
-            setCancelTarget={setCancelTarget}
-          />
-        )}
-      </div>
-
-      {/* Modals */}
-      <AddAppointmentModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        data={modalData}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-      
-      <EditAppointmentModal 
-        isOpen={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)} 
-        data={modalData}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-      
-      <NextAppointmentModal 
-        isOpen={isNextAppointmentModalOpen} 
-        onClose={() => setIsNextAppointmentModalOpen(false)} 
-      />
-      
-      <RebookModal 
-        isOpen={isRebookModalOpen} 
-        onClose={() => setIsRebookModalOpen(false)} 
-        data={modalData}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-      
-      <LeaveModal 
-        isOpen={isLeaveModalOpen} 
-        onClose={() => setIsLeaveModalOpen(false)} 
-        data={modalData}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-      
-      <MeetingModal 
-        isOpen={isMeetingModalOpen} 
-        onClose={() => setIsMeetingModalOpen(false)} 
-        data={modalData}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-      
-      <DentistsModal 
-        isOpen={isDentistsModalOpen} 
-        onClose={() => setIsDentistsModalOpen(false)} 
-      />
-      
-      <CancelModal 
-        isOpen={isCancelModalOpen} 
-        onClose={() => setIsCancelModalOpen(false)} 
-        cancelTarget={cancelTarget}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-      />
-    </div>
+    </AuthCheck>
   );
 };
 
