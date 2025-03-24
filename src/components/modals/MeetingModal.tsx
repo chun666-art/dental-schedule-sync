@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { loadMeetingData, saveMeetingData } from '@/lib/data-utils';
 import { dateToKey } from '@/lib/date-utils';
-import { MeetingRecord } from '@/types/appointment';
+import { getMeetingRecords, recordMeeting } from '@/lib/supabase';
+import { MeetingRecord, SupabaseMeetingRecord } from '@/types/appointment';
 
 interface MeetingModalProps {
   isOpen: boolean;
@@ -36,35 +37,93 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
     }
   }, [isOpen, data]);
 
-  const loadMeetingRecords = () => {
-    const meetingData = loadMeetingData();
-    const records = Object.entries(meetingData).map(([date, meetings]) => ({
-      date,
-      meetings: meetings as MeetingRecord[]
-    }));
-    setMeetingRecords(records);
+  const loadMeetingRecords = async () => {
+    try {
+      // ลองดึงข้อมูลจาก Supabase ก่อน
+      const recordsFromSupabase = await getMeetingRecords();
+      
+      if (recordsFromSupabase && recordsFromSupabase.length > 0) {
+        // แปลงข้อมูลจาก Supabase เป็นรูปแบบที่ต้องการ
+        const meetingsByDate: Record<string, MeetingRecord[]> = {};
+        
+        recordsFromSupabase.forEach((record: SupabaseMeetingRecord) => {
+          if (!meetingsByDate[record.date]) {
+            meetingsByDate[record.date] = [];
+          }
+          meetingsByDate[record.date].push({
+            dentist: record.dentist,
+            period: record.period as "morning" | "afternoon"
+          });
+        });
+        
+        const records = Object.entries(meetingsByDate).map(([date, meetings]) => ({
+          date,
+          meetings
+        }));
+        
+        setMeetingRecords(records);
+      } else {
+        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
+        const meetingData = loadMeetingData();
+        const records = Object.entries(meetingData).map(([date, meetings]) => ({
+          date,
+          meetings: meetings as MeetingRecord[]
+        }));
+        setMeetingRecords(records);
+      }
+    } catch (error) {
+      console.error('Error loading meeting records:', error);
+      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
+      const meetingData = loadMeetingData();
+      const records = Object.entries(meetingData).map(([date, meetings]) => ({
+        date,
+        meetings: meetings as MeetingRecord[]
+      }));
+      setMeetingRecords(records);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!dentist || !date || !period) return;
     
-    const meetingData = loadMeetingData();
-    meetingData[date] = meetingData[date] || [];
-    
-    meetingData[date].push({
-      dentist,
-      period
-    });
-    
-    saveMeetingData(meetingData);
-    loadMeetingRecords();
-    setDentist('');
-    setPeriod("morning");
+    try {
+      // บันทึกข้อมูลการประชุมใน Supabase
+      await recordMeeting(dentist, date, period);
+      
+      // บันทึกลงใน localStorage สำรอง
+      const meetingData = loadMeetingData();
+      meetingData[date] = meetingData[date] || [];
+      
+      meetingData[date].push({
+        dentist,
+        period
+      });
+      
+      saveMeetingData(meetingData);
+      await loadMeetingRecords();
+      setDentist('');
+      setPeriod("morning");
+    } catch (error) {
+      console.error('Error submitting meeting:', error);
+      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
+      const meetingData = loadMeetingData();
+      meetingData[date] = meetingData[date] || [];
+      
+      meetingData[date].push({
+        dentist,
+        period
+      });
+      
+      saveMeetingData(meetingData);
+      await loadMeetingRecords();
+      setDentist('');
+      setPeriod("morning");
+    }
   };
 
-  const handleDeleteMeeting = (date: string, index: number) => {
+  const handleDeleteMeeting = async (date: string, index: number) => {
     const meetingData = loadMeetingData();
     
     if (meetingData[date] && meetingData[date].length > index) {
@@ -75,7 +134,7 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
       }
       
       saveMeetingData(meetingData);
-      loadMeetingRecords();
+      await loadMeetingRecords();
     }
   };
 

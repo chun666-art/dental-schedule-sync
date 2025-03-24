@@ -37,7 +37,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!dentist) {
@@ -60,41 +60,48 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
     
     // ค้นหาไปเรื่อยๆ จนกว่าจะพบคิวว่าง หรือครบ 60 วัน
     for (let i = 0; i < 60; i++) {
-      const leaveData = loadLeaveData();
-      const dateKey = dateToKey(searchDate);
-      
-      // ตรวจสอบว่าหมอลาในวันนี้หรือไม่
-      if (leaveData[dateKey] && leaveData[dateKey].includes(dentist)) {
-        // ข้ามวันนี้เพราะหมอลา
-        searchDate = new Date(searchDate);
-        searchDate.setDate(searchDate.getDate() + 1);
-        continue;
-      }
-      
-      const dayOfWeek = searchDate.getDay();
-      
-      // ตรวจสอบตามเงื่อนไขใหม่
-      if (period === 'morning') {
-        // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
-        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
-        } else if (dayOfWeek === 5) {
-          // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
-          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+      try {
+        const leaveData = await loadLeaveData();
+        const dateKey = dateToKey(searchDate);
+        
+        // ตรวจสอบว่าหมอลาในวันนี้หรือไม่
+        if (leaveData[dateKey] && leaveData[dateKey].includes(dentist)) {
+          // ข้ามวันนี้เพราะหมอลา
+          searchDate = new Date(searchDate);
+          searchDate.setDate(searchDate.getDate() + 1);
+          continue;
         }
-      } else if (period === 'afternoon') {
-        // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          foundSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+        
+        const dayOfWeek = searchDate.getDay();
+        
+        // ตรวจสอบตามเงื่อนไขใหม่
+        if (period === 'morning') {
+          // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
+          if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            foundSlots = slots;
+          } else if (dayOfWeek === 5) {
+            // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            foundSlots = slots;
+          }
+        } else if (period === 'afternoon') {
+          // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+            foundSlots = slots;
+          }
         }
-      }
-      
-      if (foundSlots.length > 0) {
-        foundSlot = true;
-        setAvailableSlots(foundSlots);
-        setAvailableDate(searchDate);
-        setSelectedSlot(foundSlots[0]);
-        break;
+        
+        if (foundSlots.length > 0) {
+          foundSlot = true;
+          setAvailableSlots(foundSlots);
+          setAvailableDate(searchDate);
+          setSelectedSlot(foundSlots[0]);
+          break;
+        }
+      } catch (error) {
+        console.error('Error finding available slots:', error);
       }
       
       // เลื่อนไปวันถัดไป
@@ -117,7 +124,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
     setConfirmBooking(foundSlot);
   };
 
-  const handleBook = () => {
+  const handleBook = async () => {
     if (availableDate && selectedSlot) {
       const dateKey = dateToKey(availableDate);
       
@@ -132,7 +139,7 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
       
       try {
         // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
-        saveAppointmentWithMultipleSlots(dateKey, selectedSlot, newAppointment);
+        await saveAppointmentWithMultipleSlots(dateKey, selectedSlot, newAppointment);
         
         toast({
           title: "บันทึกนัดหมายสำเร็จ",

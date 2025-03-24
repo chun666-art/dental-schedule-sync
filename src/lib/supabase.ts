@@ -1,8 +1,15 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  SupabaseAppointment, 
+  SupabaseDentist,
+  SupabaseLeaveRecord,
+  SupabaseMeetingRecord,
+  SupabaseNotification 
+} from '@/types/appointment';
 
 // Function to sync appointments with Supabase
-export async function syncAppointmentsToSupabase(appointments: any) {
+export async function syncAppointmentsToSupabase(appointments: any[]) {
   try {
     const { data, error } = await supabase
       .from('appointments')
@@ -17,17 +24,17 @@ export async function syncAppointmentsToSupabase(appointments: any) {
 }
 
 // Function to get appointments from Supabase
-export async function getAppointmentsFromSupabase() {
+export async function getAppointmentsFromSupabase(): Promise<SupabaseAppointment[]> {
   try {
     const { data, error } = await supabase
       .from('appointments')
       .select('*');
       
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Error getting appointments:', error);
-    throw error;
+    return [];
   }
 }
 
@@ -47,22 +54,33 @@ export async function notifyOnLeave(dentist: string, date: string, affectedAppoi
       
     if (leaveError) throw leaveError;
     
+    // ถ้ายังไม่มีตาราง notifications ให้สร้างและตั้งค่า RLS
+    try {
+      await supabase.rpc('create_notifications_if_not_exists');
+    } catch (error) {
+      console.error('Could not create notifications table:', error);
+    }
+    
     // บันทึกข้อมูลการแจ้งเตือนสำหรับคนไข้ที่ได้รับผลกระทบ
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert(
-        affectedAppointments.map(appointment => ({
-          type: 'leave',
-          dentist,
-          date,
-          affected_appointment_id: appointment.id,
-          patient: appointment.patient,
-          phone: appointment.phone
-        }))
-      );
+    if (affectedAppointments.length > 0) {
+      const notificationData = affectedAppointments.map(appointment => ({
+        type: 'leave',
+        dentist,
+        date,
+        affected_appointment_id: appointment.id,
+        patient: appointment.patient,
+        phone: appointment.phone
+      }));
       
-    if (error) throw error;
-    return data;
+      const { data, error } = await supabase
+        .from('leave_notifications')
+        .insert(notificationData);
+        
+      if (error) throw error;
+      return data;
+    }
+    
+    return [];
   } catch (error) {
     console.error('Error recording leave notification:', error);
     throw error;
@@ -91,7 +109,7 @@ export async function recordMeeting(dentist: string, date: string, period: 'morn
 }
 
 // ดึงข้อมูลหมอทั้งหมด
-export async function getAllDentists() {
+export async function getAllDentists(): Promise<SupabaseDentist[]> {
   try {
     const { data, error } = await supabase
       .from('dentists')
@@ -99,10 +117,10 @@ export async function getAllDentists() {
       .eq('active', true);
       
     if (error) throw error;
-    return data;
+    return data || [];
   } catch (error) {
     console.error('Error getting dentists:', error);
-    throw error;
+    return [];
   }
 }
 
@@ -143,5 +161,35 @@ export async function deleteDentist(name: string) {
   } catch (error) {
     console.error('Error deleting dentist:', error);
     throw error;
+  }
+}
+
+// ดึงข้อมูลการลา
+export async function getLeaveRecords(): Promise<SupabaseLeaveRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from('leave_records')
+      .select('*');
+      
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error getting leave records:', error);
+    return [];
+  }
+}
+
+// ดึงข้อมูลการประชุม
+export async function getMeetingRecords(): Promise<SupabaseMeetingRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from('meeting_records')
+      .select('*');
+      
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error getting meeting records:', error);
+    return [];
   }
 }

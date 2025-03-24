@@ -53,7 +53,7 @@ const RebookModal: React.FC<RebookModalProps> = ({
     }
   }, [isOpen, data]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // เริ่มค้นหาจากวันที่ปัจจุบัน + จำนวนวันที่ต้องการรอ
@@ -70,27 +70,34 @@ const RebookModal: React.FC<RebookModalProps> = ({
       // ข้ามวันที่หมอลา
       const dayOfWeek = searchDate.getDay();
       
-      // ตรวจสอบตามเงื่อนไขใหม่
-      if (period === 'morning') {
-        // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
-        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-          availableSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
-        } else if (dayOfWeek === 5) {
-          // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
-          availableSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+      try {
+        // ตรวจสอบตามเงื่อนไขใหม่
+        if (period === 'morning') {
+          // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
+          if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            availableSlots = slots;
+          } else if (dayOfWeek === 5) {
+            // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            availableSlots = slots;
+          }
+        } else if (period === 'afternoon') {
+          // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+            availableSlots = slots;
+          }
         }
-      } else if (period === 'afternoon') {
-        // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          availableSlots = findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+        
+        if (availableSlots.length > 0) {
+          foundSlot = true;
+          setAvailableSlot(availableSlots[0]);
+          setAvailableDate(searchDate);
+          break;
         }
-      }
-      
-      if (availableSlots.length > 0) {
-        foundSlot = true;
-        setAvailableSlot(availableSlots[0]);
-        setAvailableDate(searchDate);
-        break;
+      } catch (error) {
+        console.error('Error finding available slots:', error);
       }
       
       // เลื่อนไปวันถัดไป
@@ -107,7 +114,7 @@ const RebookModal: React.FC<RebookModalProps> = ({
     setConfirmBooking(foundSlot);
   };
 
-  const handleBook = () => {
+  const handleBook = async () => {
     if (availableSlot && availableDate) {
       const dateKey = dateToKey(availableDate);
       
@@ -122,7 +129,7 @@ const RebookModal: React.FC<RebookModalProps> = ({
       
       try {
         // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
-        saveAppointmentWithMultipleSlots(dateKey, availableSlot, newAppointment);
+        await saveAppointmentWithMultipleSlots(dateKey, availableSlot, newAppointment);
         
         toast({
           title: "บันทึกนัดหมายสำเร็จ",
@@ -142,7 +149,7 @@ const RebookModal: React.FC<RebookModalProps> = ({
     }
   };
 
-  const handleCancelConfirm = () => {
+  const handleCancelConfirm = async () => {
     setConfirmBooking(false);
     // ค้นหาคิวว่างใหม่โดยเลื่อนวันไปอีก 1 วัน
     if (availableDate) {
@@ -152,23 +159,33 @@ const RebookModal: React.FC<RebookModalProps> = ({
       let availableSlots: string[] = [];
       const dayOfWeek = nextDate.getDay();
       
-      if (period === 'morning') {
-        if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-          availableSlots = findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
-        } else if (dayOfWeek === 5) {
-          availableSlots = findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
+      try {
+        if (period === 'morning') {
+          if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
+            availableSlots = slots;
+          } else if (dayOfWeek === 5) {
+            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
+            availableSlots = slots;
+          }
+        } else if (period === 'afternoon') {
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'afternoon');
+            availableSlots = slots;
+          }
         }
-      } else if (period === 'afternoon') {
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          availableSlots = findAvailableSlots(nextDate, duration, dentist, undefined, 'afternoon');
+        
+        if (availableSlots.length > 0) {
+          setAvailableSlot(availableSlots[0]);
+          setAvailableDate(nextDate);
+          setConfirmBooking(true);
+        } else {
+          setAvailableSlot(null);
+          setAvailableDate(null);
+          setHasSearched(true);
         }
-      }
-      
-      if (availableSlots.length > 0) {
-        setAvailableSlot(availableSlots[0]);
-        setAvailableDate(nextDate);
-        setConfirmBooking(true);
-      } else {
+      } catch (error) {
+        console.error('Error finding next available slots:', error);
         setAvailableSlot(null);
         setAvailableDate(null);
         setHasSearched(true);

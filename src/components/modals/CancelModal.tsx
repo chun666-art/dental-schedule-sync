@@ -3,7 +3,7 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { loadAppointments, saveAppointments, findAvailableSlots, dateToKey, getRelatedTimeSlots } from '@/lib/data-utils';
-import { CancelTarget } from '@/types/appointment';
+import { CancelTarget, Appointment } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
 
 interface CancelModalProps {
@@ -27,10 +27,10 @@ const CancelModal: React.FC<CancelModalProps> = ({
     onClose();
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (cancelTarget) {
       const { date, time, index } = cancelTarget;
-      const appointments = loadAppointments();
+      const appointments = await loadAppointments();
       
       if (appointments[date] && appointments[date][time] && appointments[date][time][index]) {
         const appt = appointments[date][time][index];
@@ -65,7 +65,7 @@ const CancelModal: React.FC<CancelModalProps> = ({
           }
           
           // บันทึกข้อมูลที่อัปเดต
-          saveAppointments(appointments);
+          await saveAppointments(appointments);
           
           toast({
             title: "ยกเลิกนัดหมายสำเร็จ",

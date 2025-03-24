@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { loadLeaveData, saveLeaveData } from '@/lib/data-utils';
 import { dateToKey } from '@/lib/date-utils';
+import { getLeaveRecords, notifyOnLeave } from '@/lib/supabase';
+import { SupabaseLeaveRecord } from '@/types/appointment';
 
 interface LeaveModalProps {
   isOpen: boolean;
@@ -34,33 +36,86 @@ const LeaveModal: React.FC<LeaveModalProps> = ({
     }
   }, [isOpen, data]);
 
-  const loadLeaveRecords = () => {
-    const leaveData = loadLeaveData();
-    const records = Object.entries(leaveData).map(([date, dentists]) => ({
-      date,
-      dentists: dentists as string[]
-    }));
-    setLeaveRecords(records);
+  const loadLeaveRecords = async () => {
+    try {
+      // ลองดึงข้อมูลจาก Supabase ก่อน
+      const leaveRecordsFromSupabase = await getLeaveRecords();
+      
+      if (leaveRecordsFromSupabase && leaveRecordsFromSupabase.length > 0) {
+        // แปลงข้อมูลจาก Supabase เป็นรูปแบบที่ต้องการ
+        const leaveByDate: Record<string, string[]> = {};
+        
+        leaveRecordsFromSupabase.forEach((record: SupabaseLeaveRecord) => {
+          if (!leaveByDate[record.date]) {
+            leaveByDate[record.date] = [];
+          }
+          leaveByDate[record.date].push(record.dentist);
+        });
+        
+        const records = Object.entries(leaveByDate).map(([date, dentists]) => ({
+          date,
+          dentists
+        }));
+        
+        setLeaveRecords(records);
+      } else {
+        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
+        const leaveData = loadLeaveData();
+        const records = Object.entries(leaveData).map(([date, dentists]) => ({
+          date,
+          dentists: dentists as string[]
+        }));
+        setLeaveRecords(records);
+      }
+    } catch (error) {
+      console.error('Error loading leave records:', error);
+      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
+      const leaveData = loadLeaveData();
+      const records = Object.entries(leaveData).map(([date, dentists]) => ({
+        date,
+        dentists: dentists as string[]
+      }));
+      setLeaveRecords(records);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!dentist || !date) return;
     
-    const leaveData = loadLeaveData();
-    leaveData[date] = leaveData[date] || [];
-    
-    if (!leaveData[date].includes(dentist)) {
-      leaveData[date].push(dentist);
+    try {
+      // บันทึกข้อมูลการลาใน Supabase
+      await notifyOnLeave(dentist, date, []);
+      
+      // บันทึกลงใน localStorage สำรอง
+      const leaveData = loadLeaveData();
+      leaveData[date] = leaveData[date] || [];
+      
+      if (!leaveData[date].includes(dentist)) {
+        leaveData[date].push(dentist);
+      }
+      
+      saveLeaveData(leaveData);
+      await loadLeaveRecords();
+      setDentist('');
+    } catch (error) {
+      console.error('Error submitting leave:', error);
+      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
+      const leaveData = loadLeaveData();
+      leaveData[date] = leaveData[date] || [];
+      
+      if (!leaveData[date].includes(dentist)) {
+        leaveData[date].push(dentist);
+      }
+      
+      saveLeaveData(leaveData);
+      await loadLeaveRecords();
+      setDentist('');
     }
-    
-    saveLeaveData(leaveData);
-    loadLeaveRecords();
-    setDentist('');
   };
 
-  const handleDeleteLeave = (date: string, dentistToDelete: string) => {
+  const handleDeleteLeave = async (date: string, dentistToDelete: string) => {
     const leaveData = loadLeaveData();
     
     if (leaveData[date]) {
@@ -71,7 +126,7 @@ const LeaveModal: React.FC<LeaveModalProps> = ({
       }
       
       saveLeaveData(leaveData);
-      loadLeaveRecords();
+      await loadLeaveRecords();
     }
   };
 

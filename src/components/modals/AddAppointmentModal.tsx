@@ -68,11 +68,19 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
         }
         
         // ตรวจสอบการลาของหมอ
-        const leaveData = loadLeaveData();
-        if (leaveData[data.date]) {
-          const leavingDentists = leaveData[data.date];
-          setAvailableDentists(prev => prev.filter(d => !leavingDentists.includes(d)));
-        }
+        const loadLeavesAndFilter = async () => {
+          try {
+            const leaveData = await loadLeaveData();
+            if (leaveData[data.date]) {
+              const leavingDentists = leaveData[data.date];
+              setAvailableDentists(prev => prev.filter(d => !leavingDentists.includes(d)));
+            }
+          } catch (error) {
+            console.error('Error loading leave data:', error);
+          }
+        };
+        
+        loadLeavesAndFilter();
       }
     }
   }, [isOpen, data]);
@@ -85,7 +93,7 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
     setTreatment('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!data.date || !data.time) {
@@ -98,44 +106,54 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
     }
     
     const dateObj = new Date(data.date);
-    const availableSlots = findAvailableSlots(dateObj, duration, dentist, data.time);
+    const availableSlotsPromise = findAvailableSlots(dateObj, duration, dentist, data.time);
     
-    console.log("Available slots:", availableSlots, "for time:", data.time, "duration:", duration);
-    
-    if (availableSlots.length > 0) {
-      const newAppointment: Appointment = {
-        dentist,
-        duration,
-        patient,
-        phone,
-        treatment,
-        status: "รอการยืนยันนัด"
-      };
+    try {
+      const availableSlots = await availableSlotsPromise;
+      console.log("Available slots:", availableSlots, "for time:", data.time, "duration:", duration);
       
-      try {
-        // บันทึกข้อมูลในทุกช่องเวลาที่เกี่ยวข้อง
-        saveAppointmentWithMultipleSlots(data.date, data.time, newAppointment);
+      if (availableSlots.length > 0) {
+        const newAppointment: Appointment = {
+          dentist,
+          duration,
+          patient,
+          phone,
+          treatment,
+          status: "รอการยืนยันนัด"
+        };
         
+        try {
+          // บันทึกข้อมูลในทุกช่องเวลาที่เกี่ยวข้อง
+          await saveAppointmentWithMultipleSlots(data.date, data.time, newAppointment);
+          
+          toast({
+            title: "บันทึกนัดหมายสำเร็จ",
+            description: `บันทึกนัดหมาย ${patient} กับ ${dentist} เรียบร้อยแล้ว`,
+            variant: "default",
+          });
+          
+          resetForm();
+          onClose();
+        } catch (error) {
+          console.error('Error saving appointment:', error);
+          toast({
+            title: "เกิดข้อผิดพลาด",
+            description: "ไม่สามารถบันทึกนัดหมายได้ กรุณาลองใหม่อีกครั้ง",
+            variant: "destructive",
+          });
+        }
+      } else {
         toast({
-          title: "บันทึกนัดหมายสำเร็จ",
-          description: `บันทึกนัดหมาย ${patient} กับ ${dentist} เรียบร้อยแล้ว`,
-          variant: "default",
-        });
-        
-        resetForm();
-        onClose();
-      } catch (error) {
-        console.error('Error saving appointment:', error);
-        toast({
-          title: "เกิดข้อผิดพลาด",
-          description: "ไม่สามารถบันทึกนัดหมายได้ กรุณาลองใหม่อีกครั้ง",
+          title: "ไม่สามารถนัดได้",
+          description: "คิวนี้ไม่ว่างหรือไม่รองรับระยะเวลาที่เลือก กรุณาตรวจสอบ",
           variant: "destructive",
         });
       }
-    } else {
+    } catch (error) {
+      console.error('Error checking available slots:', error);
       toast({
-        title: "ไม่สามารถนัดได้",
-        description: "คิวนี้ไม่ว่างหรือไม่รองรับระยะเวลาที่เลือก กรุณาตรวจสอบ",
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถตรวจสอบคิวว่างได้ กรุณาลองใหม่อีกครั้ง",
         variant: "destructive",
       });
     }

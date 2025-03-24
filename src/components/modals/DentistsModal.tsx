@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { loadDentists, saveDentists } from '@/lib/data-utils';
+import { getAllDentists, upsertDentist, deleteDentist } from '@/lib/supabase';
 
 interface DentistsModalProps {
   isOpen: boolean;
@@ -24,31 +25,82 @@ const DentistsModal: React.FC<DentistsModalProps> = ({
     }
   }, [isOpen]);
 
-  const loadDentistsList = () => {
-    const dentistsData = loadDentists();
-    setDentists(dentistsData);
+  const loadDentistsList = async () => {
+    try {
+      // ลองดึงข้อมูลจาก Supabase ก่อน
+      const dentistsFromSupabase = await getAllDentists();
+      
+      if (dentistsFromSupabase && dentistsFromSupabase.length > 0) {
+        // แปลงข้อมูลจาก Supabase เป็นรูปแบบ {name: color}
+        const dentistsData: Record<string, string> = {};
+        dentistsFromSupabase.forEach(dentist => {
+          dentistsData[dentist.name] = dentist.color;
+        });
+        setDentists(dentistsData);
+      } else {
+        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
+        const dentistsData = loadDentists();
+        setDentists(dentistsData);
+      }
+    } catch (error) {
+      console.error('Error loading dentists:', error);
+      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
+      const dentistsData = loadDentists();
+      setDentists(dentistsData);
+    }
   };
 
-  const handleAddDentist = (e: React.FormEvent) => {
+  const handleAddDentist = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newDentistName || !newDentistColor) return;
     
-    const dentistsData = loadDentists();
-    dentistsData[newDentistName] = newDentistColor;
-    saveDentists(dentistsData);
-    
-    setNewDentistName('');
-    setNewDentistColor('#ff9999');
-    loadDentistsList();
+    try {
+      // บันทึกลงใน Supabase
+      await upsertDentist(newDentistName, newDentistColor);
+      
+      // บันทึกลงใน localStorage สำรอง
+      const dentistsData = loadDentists();
+      dentistsData[newDentistName] = newDentistColor;
+      saveDentists(dentistsData);
+      
+      setNewDentistName('');
+      setNewDentistColor('#ff9999');
+      loadDentistsList();
+    } catch (error) {
+      console.error('Error adding dentist:', error);
+      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
+      const dentistsData = loadDentists();
+      dentistsData[newDentistName] = newDentistColor;
+      saveDentists(dentistsData);
+      
+      setNewDentistName('');
+      setNewDentistColor('#ff9999');
+      loadDentistsList();
+    }
   };
 
-  const handleDeleteDentist = (dentistName: string) => {
+  const handleDeleteDentist = async (dentistName: string) => {
     if (window.confirm(`คุณต้องการลบหมอ ${dentistName} ออกจากรายชื่อหรือไม่?`)) {
-      const dentistsData = loadDentists();
-      delete dentistsData[dentistName];
-      saveDentists(dentistsData);
-      loadDentistsList();
+      try {
+        // ลบจาก Supabase
+        await deleteDentist(dentistName);
+        
+        // ลบจาก localStorage สำรอง
+        const dentistsData = loadDentists();
+        delete dentistsData[dentistName];
+        saveDentists(dentistsData);
+        
+        loadDentistsList();
+      } catch (error) {
+        console.error('Error deleting dentist:', error);
+        // ถ้าเกิดข้อผิดพลาดให้ลบจาก localStorage อย่างเดียว
+        const dentistsData = loadDentists();
+        delete dentistsData[dentistName];
+        saveDentists(dentistsData);
+        
+        loadDentistsList();
+      }
     }
   };
 
