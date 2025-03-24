@@ -90,6 +90,39 @@ export type Database = {
         }
         Relationships: []
       }
+      leave_notifications: {
+        Row: {
+          affected_appointment_id: string
+          created_at: string
+          date: string
+          dentist: string
+          id: string
+          patient: string
+          phone: string
+          type: string
+        }
+        Insert: {
+          affected_appointment_id: string
+          created_at?: string
+          date: string
+          dentist: string
+          id?: string
+          patient: string
+          phone: string
+          type: string
+        }
+        Update: {
+          affected_appointment_id?: string
+          created_at?: string
+          date?: string
+          dentist?: string
+          id?: string
+          patient?: string
+          phone?: string
+          type?: string
+        }
+        Relationships: []
+      }
       leave_records: {
         Row: {
           created_at: string
@@ -143,7 +176,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_notifications_if_not_exists: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

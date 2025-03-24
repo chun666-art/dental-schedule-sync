@@ -3,8 +3,9 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { loadAppointments, saveAppointments, findAvailableSlots, dateToKey, getRelatedTimeSlots } from '@/lib/data-utils';
-import { CancelTarget, Appointment } from '@/types/appointment';
+import { CancelTarget, Appointment, SupabaseAppointment } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CancelModalProps {
   isOpen: boolean;
@@ -62,6 +63,25 @@ const CancelModal: React.FC<CancelModalProps> = ({
           // ลบวันที่ที่ว่างเปล่า
           if (appointments[date] && Object.keys(appointments[date]).length === 0) {
             delete appointments[date];
+          }
+          
+          // ลบข้อมูลการนัดหมายจาก Supabase
+          try {
+            const { error } = await supabase
+              .from('appointments')
+              .delete()
+              .eq('date', date)
+              .eq('dentist', appt.dentist)
+              .eq('patient', appt.patient)
+              .eq('phone', appt.phone);
+              
+            if (error) {
+              console.error('Error deleting from Supabase:', error);
+              throw error;
+            }
+          } catch (supabaseError) {
+            console.error('Supabase delete error:', supabaseError);
+            // ถ้าเกิดข้อผิดพลาดกับ Supabase ยังคงทำงานต่อและบันทึกลงใน localStorage
           }
           
           // บันทึกข้อมูลที่อัปเดต
