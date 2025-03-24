@@ -7,7 +7,8 @@ import {
   saveAppointmentWithMultipleSlots,
   getRelatedTimeSlots,
   convertToDuration,
-  convertToStatus
+  convertToStatus,
+  updateAppointmentInAllSlots
 } from '@/lib/appointment-utils';
 
 import {
@@ -28,6 +29,7 @@ export {
   getRelatedTimeSlots,
   convertToDuration,
   convertToStatus,
+  updateAppointmentInAllSlots,
   loadDentists,
   saveDentists,
   loadLeaveData,

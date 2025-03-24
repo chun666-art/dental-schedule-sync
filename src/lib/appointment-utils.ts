@@ -1,228 +1,228 @@
-
+import { format, add, isWithinInterval } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Appointment, 
-  TimeSlot, 
-  SupabaseAppointment 
-} from '@/types/appointment';
-import { dateToKey } from '@/lib/date-utils';
 
-// Helper function to safely convert string to allowed duration type
-export function convertToDuration(value: string): "30min" | "1hour" | "2hours" {
-  if (value === "30min" || value === "1hour" || value === "2hours") {
-    return value;
-  }
-  // Default value if conversion fails
-  return "30min";
-}
-
-// Helper function to safely convert string to allowed status type
-export function convertToStatus(value: string): "รอการยืนยันนัด" | "ยืนยันนัด" | "นัดถูกยกเลิก" {
-  if (value === "รอการยืนยันนัด" || value === "ยืนยันนัด" || value === "นัดถูกยกเลิก") {
-    return value;
-  }
-  // Default value if conversion fails
-  return "รอการยืนยันนัด";
-}
-
-// ใช้ localStorage เพื่อเก็บข้อมูลการนัดหมาย
-export const loadAppointments = async (): Promise<Record<string, Record<string, Appointment[]>>> => {
+// Function to load appointments from localStorage
+export const loadAppointments = async () => {
   try {
-    // ลองดึงข้อมูลจาก Supabase ก่อน
-    const { data: appointmentsFromSupabase, error } = await supabase
+    const { data, error } = await supabase
       .from('appointments')
       .select('*');
-    
+
     if (error) {
-      throw error;
+      console.error('Error fetching appointments from Supabase:', error);
+      // Fallback to localStorage if Supabase fails
+      const storedAppointments = localStorage.getItem('appointments');
+      return storedAppointments ? JSON.parse(storedAppointments) : {};
     }
-    
-    if (appointmentsFromSupabase && appointmentsFromSupabase.length > 0) {
-      // แปลงข้อมูลจาก Supabase เป็นรูปแบบที่ต้องการ
-      const appointments: Record<string, Record<string, Appointment[]>> = {};
-      
-      appointmentsFromSupabase.forEach((appt: SupabaseAppointment) => {
-        if (!appointments[appt.date]) {
-          appointments[appt.date] = {};
+
+    // Convert the Supabase data to the format expected by the app
+    const formattedAppointments: Record<string, any[]> = {};
+    if (data && data.length > 0) {
+      data.forEach(appointment => {
+        const dateKey = format(new Date(appointment.start_time), 'yyyy-MM-dd');
+        if (!formattedAppointments[dateKey]) {
+          formattedAppointments[dateKey] = [];
         }
-        if (!appointments[appt.date][appt.time]) {
-          appointments[appt.date][appt.time] = [];
-        }
-        
-        appointments[appt.date][appt.time].push({
-          dentist: appt.dentist,
-          duration: convertToDuration(appt.duration),
-          patient: appt.patient,
-          phone: appt.phone,
-          treatment: appt.treatment,
-          status: convertToStatus(appt.status)
+        formattedAppointments[dateKey].push({
+          id: appointment.id,
+          dentist: appointment.dentist,
+          startTime: format(new Date(appointment.start_time), 'HH:mm'),
+          endTime: format(new Date(appointment.end_time), 'HH:mm'),
+          patientName: appointment.patient_name,
+          details: appointment.details,
+          status: appointment.status,
+          duration: appointment.duration,
         });
       });
-      
-      return appointments;
     }
-    
-    // ถ้าไม่มีข้อมูลใน Supabase หรือเกิดข้อผิดพลาด ให้ใช้ localStorage
-    const savedData = localStorage.getItem('appointments');
-    return savedData ? JSON.parse(savedData) : {};
+
+    return formattedAppointments;
   } catch (error) {
     console.error('Error loading appointments:', error);
-    // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
-    const savedData = localStorage.getItem('appointments');
-    return savedData ? JSON.parse(savedData) : {};
+    // Fallback to localStorage if Supabase fails
+    const storedAppointments = localStorage.getItem('appointments');
+    return storedAppointments ? JSON.parse(storedAppointments) : {};
   }
 };
 
-// บันทึกข้อมูลการนัดหมายลงใน localStorage และ Supabase
-export const saveAppointments = async (appointments: Record<string, Record<string, Appointment[]>>) => {
+// Function to save appointments to localStorage
+export const saveAppointments = async (appointments: any) => {
   try {
-    // บันทึกลงใน localStorage
-    localStorage.setItem('appointments', JSON.stringify(appointments));
-    
-    // แปลงข้อมูลเป็นรูปแบบสำหรับบันทึกไปยัง Supabase
-    const appointmentsForSupabase: any[] = [];
-    
-    Object.entries(appointments).forEach(([date, timeSlots]) => {
-      Object.entries(timeSlots).forEach(([time, appts]) => {
-        appts.forEach(appt => {
-          appointmentsForSupabase.push({
-            date,
-            time,
-            dentist: appt.dentist,
-            duration: appt.duration,
-            patient: appt.patient,
-            phone: appt.phone,
-            treatment: appt.treatment,
-            status: appt.status
-          });
-        });
-      });
+    // Prepare appointments for Supabase
+    const appointmentsToSave = Object.entries(appointments).flatMap(([dateKey, appointmentsForDate]) => {
+      return (appointmentsForDate as any[]).map(appointment => ({
+        id: appointment.id,
+        dentist: appointment.dentist,
+        start_time: format(new Date(`${dateKey} ${appointment.startTime}`), 'yyyy-MM-dd HH:mm:ss'),
+        end_time: format(new Date(`${dateKey} ${appointment.endTime}`), 'yyyy-MM-dd HH:mm:ss'),
+        patient_name: appointment.patientName,
+        details: appointment.details,
+        status: appointment.status,
+        duration: appointment.duration,
+      }));
     });
-    
-    // บันทึกลงใน Supabase โดยลบข้อมูลเก่าและเพิ่มข้อมูลใหม่ทั้งหมด
-    if (appointmentsForSupabase.length > 0) {
-      // ลบข้อมูลทั้งหมดก่อน (ถ้ามีหลายรายการอาจต้องใช้การจัดการที่ซับซ้อนขึ้น)
-      const { error: deleteError } = await supabase
-        .from('appointments')
-        .delete()
-        .gte('id', '0'); // ลบทุกรายการ
-      
-      if (deleteError) {
-        console.error('Error deleting appointments:', deleteError);
-      }
-      
-      // เพิ่มข้อมูลใหม่
-      const { error: insertError } = await supabase
-        .from('appointments')
-        .insert(appointmentsForSupabase);
-      
-      if (insertError) {
-        console.error('Error inserting appointments:', insertError);
-        throw insertError;
-      }
+
+    // Save to Supabase
+    const { error } = await supabase
+      .from('appointments')
+      .upsert(appointmentsToSave, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Error saving appointments to Supabase:', error);
+      // Fallback to localStorage if Supabase fails
+      localStorage.setItem('appointments', JSON.stringify(appointments));
+      return false;
     }
-    
+
     return true;
   } catch (error) {
     console.error('Error saving appointments:', error);
-    // ถ้าเกิดข้อผิดพลาด ให้บันทึกลงใน localStorage อย่างเดียว
+    // Fallback to localStorage if Supabase fails
     localStorage.setItem('appointments', JSON.stringify(appointments));
     return false;
   }
 };
 
-// บันทึกการนัดในหลายช่วงเวลา
-export const saveAppointmentWithMultipleSlots = async (date: string, timeSlot: string, appointment: Appointment) => {
+// Function to save an appointment with multiple time slots
+export const saveAppointmentWithMultipleSlots = async (
+  startDate: Date,
+  endDate: Date,
+  dentist: string,
+  startTime: string,
+  endTime: string,
+  patientName: string,
+  details: string,
+  status: string,
+  duration: number
+): Promise<boolean> => {
   try {
-    let appointments = await loadAppointments();
-    
-    // ตรวจสอบว่าวันที่นี้มีการนัดหมายหรือไม่
-    if (!appointments[date]) {
-      appointments[date] = {};
-    }
-    
-    // ตรวจสอบว่าช่วงเวลานี้มีการนัดหมายหรือไม่
-    if (!appointments[date][timeSlot]) {
-      appointments[date][timeSlot] = [];
-    }
-    
-    // เพิ่มการนัดหมายใหม่ลงในรายการ
-    appointments[date][timeSlot].push(appointment);
-    
-    // ช่วงเวลาที่เกี่ยวข้องตามระยะเวลา
-    const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
-    
-    // เพิ่มการนัดหมายในช่วงเวลาอื่น ๆ ที่เกี่ยวข้อง
-    for (let i = 1; i < relatedSlots.length; i++) {
-      const slot = relatedSlots[i];
-      
-      if (!appointments[date][slot]) {
-        appointments[date][slot] = [];
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const appointmentId = uuidv4();
+      const dateKey = format(currentDate, 'yyyy-MM-dd');
+      const startDateTime = new Date(`${dateKey} ${startTime}`);
+      const endDateTime = new Date(`${dateKey} ${endTime}`);
+
+      // Prepare appointment data for Supabase
+      const appointmentData = {
+        id: appointmentId,
+        dentist: dentist,
+        start_time: format(startDateTime, 'yyyy-MM-dd HH:mm:ss'),
+        end_time: format(endDateTime, 'yyyy-MM-dd HH:mm:ss'),
+        patient_name: patientName,
+        details: details,
+        status: status,
+        duration: duration,
+      };
+
+      // Save to Supabase
+      const { error } = await supabase
+        .from('appointments')
+        .insert([appointmentData]);
+
+      if (error) {
+        console.error('Error saving appointment to Supabase:', error);
+        return false;
       }
-      
-      appointments[date][slot].push(appointment);
+
+      // Move to the next day
+      currentDate = add(currentDate, { days: 1 });
     }
-    
-    // บันทึกข้อมูลทั้งหมด
-    await saveAppointments(appointments);
-    
-    // บันทึกไปยัง Supabase เฉพาะรายการที่เพิ่มใหม่
-    const supabaseAppointments = relatedSlots.map(slot => ({
-      date,
-      time: slot,
-      dentist: appointment.dentist,
-      duration: appointment.duration,
-      patient: appointment.patient,
-      phone: appointment.phone,
-      treatment: appointment.treatment,
-      status: appointment.status
-    }));
-    
-    const { error } = await supabase
-      .from('appointments')
-      .insert(supabaseAppointments);
-    
-    if (error) {
-      console.error('Error inserting to Supabase:', error);
-      throw error;
-    }
-    
+
     return true;
   } catch (error) {
-    console.error('Error saving appointment:', error);
+    console.error('Error saving appointment with multiple slots:', error);
     return false;
   }
 };
 
-// ช่วงเวลาที่เกี่ยวข้องกับช่วงเวลาที่กำหนด ตามระยะเวลา
-export const getRelatedTimeSlots = (timeSlot: string, duration: string): string[] => {
-  if (duration === "30min") {
-    return [timeSlot];
-  }
-  
-  const timeParts = timeSlot.split(':');
-  let hour = parseInt(timeParts[0]);
-  let minute = parseInt(timeParts[1].substring(0, 2));
-  
-  const relatedSlots: string[] = [timeSlot];
-  
-  if (duration === "1hour") {
-    minute += 30;
-    if (minute === 60) {
-      minute = 0;
-      hour += 1;
+// Function to get related time slots for an appointment
+export const getRelatedTimeSlots = async (appointment: any): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('patient_name', appointment.patient_name)
+      .eq('dentist', appointment.dentist);
+
+    if (error) {
+      console.error('Error fetching related time slots from Supabase:', error);
+      return [];
     }
-    relatedSlots.push(`${hour}:${minute === 0 ? '00' : minute}-${hour}:${minute + 30 === 60 ? '00' : minute + 30}`);
-  } else if (duration === "2hours") {
-    for (let i = 0; i < 3; i++) {
-      minute += 30;
-      if (minute === 60) {
-        minute = 0;
-        hour += 1;
-      }
-      relatedSlots.push(`${hour}:${minute === 0 ? '00' : minute}-${hour}:${minute + 30 === 60 ? '00' : minute + 30}`);
+
+    return data || [];
+  } catch (error) {
+    console.error('Error getting related time slots:', error);
+    return [];
+  }
+};
+
+// Function to convert duration to a readable format
+export const convertToDuration = (duration: number): string => {
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  return `${hours} ชม. ${minutes} นาที`;
+};
+
+// Function to convert status to a readable format
+export const convertToStatus = (status: string): string => {
+  switch (status) {
+    case 'confirmed':
+      return 'ยืนยันแล้ว';
+    case 'pending':
+      return 'รอการยืนยัน';
+    case 'cancelled':
+      return 'ยกเลิก';
+    default:
+      return 'ไม่ทราบสถานะ';
+  }
+};
+
+// Add the missing updateAppointmentInAllSlots function
+export const updateAppointmentInAllSlots = async (appointmentId: string, updatedData: any) => {
+  try {
+    const { data: appointments } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('id', appointmentId);
+
+    if (!appointments || appointments.length === 0) {
+      throw new Error('Appointment not found');
+    }
+
+    const originalAppointment = appointments[0];
+    const relatedSlots = await getRelatedTimeSlots(originalAppointment);
+
+    // Update all related appointments
+    for (const slot of relatedSlots) {
+      await supabase
+        .from('appointments')
+        .update(updatedData)
+        .eq('id', slot.id);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating appointment in all slots:', error);
+    
+    // Fallback to localStorage if Supabase fails
+    try {
+      const storedAppointments = JSON.parse(localStorage.getItem('appointments') || '{}');
+      Object.keys(storedAppointments).forEach(dateKey => {
+        storedAppointments[dateKey] = storedAppointments[dateKey].map((apt: any) => {
+          if (apt.id === appointmentId) {
+            return { ...apt, ...updatedData };
+          }
+          return apt;
+        });
+      });
+      localStorage.setItem('appointments', JSON.stringify(storedAppointments));
+      return true;
+    } catch (localError) {
+      console.error('Local storage fallback failed:', localError);
+      return false;
     }
   }
-  
-  return relatedSlots;
 };

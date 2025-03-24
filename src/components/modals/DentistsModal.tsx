@@ -1,168 +1,168 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { TrashIcon, PlusCircleIcon } from 'lucide-react';
 import { loadDentists, saveDentists } from '@/lib/data-utils';
-import { getAllDentists, upsertDentist, deleteDentist } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
 
 interface DentistsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onDentistsUpdated: () => void;
 }
 
-const DentistsModal: React.FC<DentistsModalProps> = ({
-  isOpen,
-  onClose
-}) => {
-  const [newDentistName, setNewDentistName] = useState<string>('');
-  const [newDentistColor, setNewDentistColor] = useState<string>('#ff9999');
+const DentistsModal: React.FC<DentistsModalProps> = ({ isOpen, onClose, onDentistsUpdated }) => {
   const [dentists, setDentists] = useState<Record<string, string>>({});
+  const [newDentistName, setNewDentistName] = useState('');
+  const [newDentistId, setNewDentistId] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
-      loadDentistsList();
+      loadDentistData();
     }
   }, [isOpen]);
 
-  const loadDentistsList = async () => {
+  const loadDentistData = async () => {
     try {
-      // ลองดึงข้อมูลจาก Supabase ก่อน
-      const dentistsFromSupabase = await getAllDentists();
-      
-      if (dentistsFromSupabase && dentistsFromSupabase.length > 0) {
-        // แปลงข้อมูลจาก Supabase เป็นรูปแบบ {name: color}
-        const dentistsData: Record<string, string> = {};
-        dentistsFromSupabase.forEach(dentist => {
-          dentistsData[dentist.name] = dentist.color;
-        });
-        setDentists(dentistsData);
-      } else {
-        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
-        const dentistsData = loadDentists();
-        setDentists(dentistsData);
-      }
-    } catch (error) {
-      console.error('Error loading dentists:', error);
-      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
-      const dentistsData = loadDentists();
+      const dentistsData = await loadDentists();
       setDentists(dentistsData);
-    }
-  };
-
-  const handleAddDentist = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newDentistName || !newDentistColor) return;
-    
-    try {
-      // บันทึกลงใน Supabase
-      await upsertDentist(newDentistName, newDentistColor);
-      
-      // บันทึกลงใน localStorage สำรอง
-      const dentistsData = loadDentists();
-      dentistsData[newDentistName] = newDentistColor;
-      saveDentists(dentistsData);
-      
-      setNewDentistName('');
-      setNewDentistColor('#ff9999');
-      loadDentistsList();
     } catch (error) {
-      console.error('Error adding dentist:', error);
-      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
-      const dentistsData = loadDentists();
-      dentistsData[newDentistName] = newDentistColor;
-      saveDentists(dentistsData);
-      
-      setNewDentistName('');
-      setNewDentistColor('#ff9999');
-      loadDentistsList();
+      console.error('Failed to load dentists:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลทันตแพทย์ได้',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleDeleteDentist = async (dentistName: string) => {
-    if (window.confirm(`คุณต้องการลบหมอ ${dentistName} ออกจากรายชื่อหรือไม่?`)) {
-      try {
-        // ลบจาก Supabase
-        await deleteDentist(dentistName);
-        
-        // ลบจาก localStorage สำรอง
-        const dentistsData = loadDentists();
-        delete dentistsData[dentistName];
-        saveDentists(dentistsData);
-        
-        loadDentistsList();
-      } catch (error) {
-        console.error('Error deleting dentist:', error);
-        // ถ้าเกิดข้อผิดพลาดให้ลบจาก localStorage อย่างเดียว
-        const dentistsData = loadDentists();
-        delete dentistsData[dentistName];
-        saveDentists(dentistsData);
-        
-        loadDentistsList();
-      }
+  const handleAddDentist = async () => {
+    if (!newDentistId || !newDentistName) {
+      toast({
+        title: 'ข้อมูลไม่ครบถ้วน',
+        description: 'กรุณากรอกรหัสและชื่อทันตแพทย์',
+        variant: 'destructive',
+      });
+      return;
     }
+
+    try {
+      const updatedDentists = { ...dentists, [newDentistId]: newDentistName };
+      await saveDentists(updatedDentists);
+      
+      // Update state after successful save
+      setDentists(updatedDentists);
+      setNewDentistId('');
+      setNewDentistName('');
+      
+      toast({
+        title: 'เพิ่มทันตแพทย์สำเร็จ',
+        description: `เพิ่ม ${newDentistName} เรียบร้อยแล้ว`,
+      });
+    } catch (error) {
+      console.error('Failed to add dentist:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถเพิ่มทันตแพทย์ได้',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRemoveDentist = async (id: string) => {
+    try {
+      const updatedDentists = { ...dentists };
+      delete updatedDentists[id];
+      
+      await saveDentists(updatedDentists);
+      
+      // Update state after successful save
+      setDentists(updatedDentists);
+      
+      toast({
+        title: 'ลบทันตแพทย์สำเร็จ',
+        description: `ลบทันตแพทย์ ${dentists[id]} เรียบร้อยแล้ว`,
+      });
+    } catch (error) {
+      console.error('Failed to remove dentist:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถลบทันตแพทย์ได้',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleClose = () => {
+    onDentistsUpdated();
+    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>จัดการรายชื่อหมอ</DialogTitle>
+          <DialogTitle>จัดการทันตแพทย์</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleAddDentist} className="space-y-4 mt-4">
-          <div className="grid gap-2">
-            <Label htmlFor="new-dentist-name">ชื่อหมอ:</Label>
-            <input
-              type="text"
-              id="new-dentist-name"
+        <div className="space-y-4 mt-4">
+          <div className="grid grid-cols-3 gap-2">
+            <Input
+              placeholder="รหัส"
+              value={newDentistId}
+              onChange={(e) => setNewDentistId(e.target.value)}
+              className="col-span-1"
+            />
+            <Input
+              placeholder="ชื่อทันตแพทย์"
               value={newDentistName}
               onChange={(e) => setNewDentistName(e.target.value)}
-              className="p-2 border rounded"
-              placeholder="ชื่อหมอ"
-              required
+              className="col-span-1"
             />
+            <Button onClick={handleAddDentist} className="col-span-1">
+              <PlusCircleIcon className="h-4 w-4 mr-2" />
+              เพิ่ม
+            </Button>
           </div>
           
-          <div className="grid gap-2">
-            <Label htmlFor="new-dentist-color">สี:</Label>
-            <input
-              type="color"
-              id="new-dentist-color"
-              value={newDentistColor}
-              onChange={(e) => setNewDentistColor(e.target.value)}
-              className="p-2 border rounded h-10"
-              required
-            />
-          </div>
-          
-          <DialogFooter>
-            <Button type="submit" className="bg-green-500 hover:bg-green-600">เพิ่มหมอ</Button>
-          </DialogFooter>
-        </form>
-        
-        {/* แสดงรายชื่อหมอทั้งหมด */}
-        <div className="mt-6">
-          <h3 className="font-medium mb-2">รายชื่อหมอทั้งหมด</h3>
-          <div className="space-y-2">
-            {Object.entries(dentists).map(([name, color], index) => (
-              <div key={index} className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
-                <div 
-                  style={{ backgroundColor: color }} 
-                  className="w-5 h-5 rounded"
-                ></div>
-                <span className="flex-grow">{name}</span>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  className="bg-red-500 hover:bg-red-600 text-white"
-                  onClick={() => handleDeleteDentist(name)}
-                >
-                  ลบ
-                </Button>
-              </div>
-            ))}
+          <div className="border rounded-md p-2 max-h-60 overflow-y-auto">
+            <table className="w-full">
+              <thead className="border-b">
+                <tr>
+                  <th className="text-left py-2 px-2">รหัส</th>
+                  <th className="text-left py-2 px-2">ชื่อ</th>
+                  <th className="text-right py-2 px-2">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(dentists).map(([id, name]) => (
+                  <tr key={id} className="border-b last:border-b-0">
+                    <td className="py-2 px-2">{id}</td>
+                    <td className="py-2 px-2">{name}</td>
+                    <td className="py-2 px-2 text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleRemoveDentist(id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <TrashIcon className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {Object.keys(dentists).length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="text-center py-4 text-muted-foreground">
+                      ไม่พบข้อมูลทันตแพทย์
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </DialogContent>

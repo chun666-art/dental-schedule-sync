@@ -1,208 +1,202 @@
 
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import React, { useState, useEffect } from 'react';
+import { format, addDays } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { Calendar } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { loadLeaveData, saveLeaveData } from '@/lib/data-utils';
-import { dateToKey } from '@/lib/date-utils';
-import { getLeaveRecords, notifyOnLeave } from '@/lib/supabase';
-import { SupabaseLeaveRecord } from '@/types/appointment';
+import { useToast } from '@/hooks/use-toast';
 
 interface LeaveModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: { date?: string };
-  currentView: 'week' | 'today';
-  setCurrentView: (view: 'week' | 'today') => void;
+  onLeaveRecorded: () => void;
+  selectedDate: Date;
 }
 
-const LeaveModal: React.FC<LeaveModalProps> = ({
-  isOpen,
-  onClose,
-  data,
-  currentView,
-  setCurrentView
+const LeaveModal: React.FC<LeaveModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onLeaveRecorded,
+  selectedDate
 }) => {
-  const [dentist, setDentist] = useState<string>('');
-  const [date, setDate] = useState<string>('');
-  const [leaveRecords, setLeaveRecords] = useState<{date: string, dentists: string[]}[]>([]);
+  const [leaveDate, setLeaveDate] = useState<Date | undefined>(selectedDate);
+  const [leaveType, setLeaveType] = useState('sick');
+  const [leaveDentist, setLeaveDentist] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveEndDate, setLeaveEndDate] = useState<Date | undefined>(addDays(selectedDate, 1));
+  const [leaveData, setLeaveData] = useState<Record<string, string[]>>({});
+  const { toast } = useToast();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
-      const today = new Date();
-      const defaultDate = data?.date || dateToKey(today);
-      setDate(defaultDate);
-      loadLeaveRecords();
+      loadLeaveDataAsync();
     }
-  }, [isOpen, data]);
+  }, [isOpen]);
 
-  const loadLeaveRecords = async () => {
+  // Update the leave date when selectedDate prop changes
+  useEffect(() => {
+    setLeaveDate(selectedDate);
+    setLeaveEndDate(addDays(selectedDate, 1));
+  }, [selectedDate]);
+
+  const loadLeaveDataAsync = async () => {
     try {
-      // ลองดึงข้อมูลจาก Supabase ก่อน
-      const leaveRecordsFromSupabase = await getLeaveRecords();
-      
-      if (leaveRecordsFromSupabase && leaveRecordsFromSupabase.length > 0) {
-        // แปลงข้อมูลจาก Supabase เป็นรูปแบบที่ต้องการ
-        const leaveByDate: Record<string, string[]> = {};
-        
-        leaveRecordsFromSupabase.forEach((record: SupabaseLeaveRecord) => {
-          if (!leaveByDate[record.date]) {
-            leaveByDate[record.date] = [];
-          }
-          leaveByDate[record.date].push(record.dentist);
-        });
-        
-        const records = Object.entries(leaveByDate).map(([date, dentists]) => ({
-          date,
-          dentists
-        }));
-        
-        setLeaveRecords(records);
-      } else {
-        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
-        const leaveData = loadLeaveData();
-        const records = Object.entries(leaveData).map(([date, dentists]) => ({
-          date,
-          dentists: dentists as string[]
-        }));
-        setLeaveRecords(records);
-      }
+      const data = await loadLeaveData();
+      setLeaveData(data);
     } catch (error) {
-      console.error('Error loading leave records:', error);
-      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
-      const leaveData = loadLeaveData();
-      const records = Object.entries(leaveData).map(([date, dentists]) => ({
-        date,
-        dentists: dentists as string[]
-      }));
-      setLeaveRecords(records);
+      console.error('Failed to load leave data:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลวันลาได้',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!dentist || !date) return;
+  const handleLeaveRecording = async () => {
+    if (!leaveDate || !leaveDentist) {
+      toast({
+        title: 'ข้อมูลไม่ครบถ้วน',
+        description: 'กรุณาเลือกวันที่และทันตแพทย์',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const startDate = leaveDate;
+    const endDate = leaveEndDate || startDate;
     
     try {
-      // บันทึกข้อมูลการลาใน Supabase
-      await notifyOnLeave(dentist, date, []);
+      // Create a clone of the current leave data
+      const updatedLeaveData = { ...leaveData };
       
-      // บันทึกลงใน localStorage สำรอง
-      const leaveData = loadLeaveData();
-      leaveData[date] = leaveData[date] || [];
-      
-      if (!leaveData[date].includes(dentist)) {
-        leaveData[date].push(dentist);
+      // Loop through each day in the leave period
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dateKey = format(currentDate, 'yyyy-MM-dd');
+        const leaveInfo = `${leaveDentist}|${leaveType}|${leaveReason}`;
+        
+        // Add leave info for this date
+        if (!updatedLeaveData[dateKey]) {
+          updatedLeaveData[dateKey] = [];
+        }
+        updatedLeaveData[dateKey].push(leaveInfo);
+        
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
       }
       
-      saveLeaveData(leaveData);
-      await loadLeaveRecords();
-      setDentist('');
+      // Save updated leave data
+      await saveLeaveData(updatedLeaveData);
+      
+      // Update state with the new data
+      setLeaveData(updatedLeaveData);
+      
+      // Reset form
+      setLeaveReason('');
+      
+      toast({
+        title: 'บันทึกวันลาสำเร็จ',
+        description: `บันทึกวันลาสำหรับ ${leaveDentist} เรียบร้อยแล้ว`,
+      });
+      
+      onLeaveRecorded();
+      onClose();
     } catch (error) {
-      console.error('Error submitting leave:', error);
-      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
-      const leaveData = loadLeaveData();
-      leaveData[date] = leaveData[date] || [];
-      
-      if (!leaveData[date].includes(dentist)) {
-        leaveData[date].push(dentist);
-      }
-      
-      saveLeaveData(leaveData);
-      await loadLeaveRecords();
-      setDentist('');
+      console.error('Failed to record leave:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถบันทึกวันลาได้',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleDeleteLeave = async (date: string, dentistToDelete: string) => {
-    const leaveData = loadLeaveData();
-    
-    if (leaveData[date]) {
-      leaveData[date] = leaveData[date].filter(d => d !== dentistToDelete);
-      
-      if (leaveData[date].length === 0) {
-        delete leaveData[date];
-      }
-      
-      saveLeaveData(leaveData);
-      await loadLeaveRecords();
+  const getDateRangeText = () => {
+    if (!leaveDate) return '';
+    if (!leaveEndDate || leaveDate.getTime() === leaveEndDate.getTime()) {
+      return format(leaveDate, 'dd MMMM yyyy', { locale: th });
     }
+    return `${format(leaveDate, 'dd MMMM yyyy', { locale: th })} - ${format(leaveEndDate, 'dd MMMM yyyy', { locale: th })}`;
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>บันทึกการลา</DialogTitle>
+          <DialogTitle>บันทึกวันลา</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid gap-2">
-            <Label htmlFor="leave-dentist">เลือกหมอฟัน:</Label>
-            <select
-              id="leave-dentist"
-              value={dentist}
-              onChange={(e) => setDentist(e.target.value)}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="">เลือกหมอฟัน</option>
-              <option value="DC">DC</option>
-              <option value="DD">DD</option>
-              <option value="DPa">DPa</option>
-              <option value="DPu">DPu</option>
-              <option value="DT">DT</option>
-              <option value="ทำเด็กนักเรียน">ทำเด็กนักเรียน</option>
-            </select>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="leave-date">วันที่:</Label>
-            <input
-              type="date"
-              id="leave-date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="p-2 border rounded"
-              required
+        <div className="space-y-4 mt-4">
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">ทันตแพทย์</label>
+            <Input
+              placeholder="ชื่อทันตแพทย์"
+              value={leaveDentist}
+              onChange={(e) => setLeaveDentist(e.target.value)}
             />
           </div>
           
-          <DialogFooter>
-            <Button type="submit">บันทึก</Button>
-          </DialogFooter>
-        </form>
-        
-        {/* แสดงรายการลาที่บันทึกไว้ */}
-        <div className="mt-6">
-          <h3 className="font-medium mb-2">รายการลาที่บันทึกไว้:</h3>
-          {leaveRecords.length > 0 ? (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {leaveRecords.map((record, recordIndex) => (
-                <div key={recordIndex} className="p-2 bg-gray-100 rounded">
-                  <div className="font-medium">{record.date}</div>
-                  <div className="space-y-1 mt-1">
-                    {record.dentists.map((d, dIndex) => (
-                      <div key={dIndex} className="flex justify-between items-center">
-                        <span>{d}</span>
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          className="bg-red-500 hover:bg-red-600 text-white p-1 text-xs"
-                          onClick={() => handleDeleteLeave(record.date, d)}
-                        >
-                          ลบ
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">ประเภทการลา</label>
+            <Select value={leaveType} onValueChange={setLeaveType}>
+              <SelectTrigger>
+                <SelectValue placeholder="เลือกประเภทการลา" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sick">ลาป่วย</SelectItem>
+                <SelectItem value="personal">ลากิจ</SelectItem>
+                <SelectItem value="vacation">ลาพักร้อน</SelectItem>
+                <SelectItem value="other">อื่นๆ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">ระยะเวลาการลา: {getDateRangeText()}</label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium">วันเริ่มต้น</label>
+                <Calendar
+                  mode="single"
+                  selected={leaveDate}
+                  onSelect={setLeaveDate}
+                  className="border rounded-md p-2"
+                  locale={th}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium">วันสิ้นสุด</label>
+                <Calendar
+                  mode="single"
+                  selected={leaveEndDate}
+                  onSelect={setLeaveEndDate}
+                  className="border rounded-md p-2"
+                  locale={th}
+                />
+              </div>
             </div>
-          ) : (
-            <p className="text-gray-500">ไม่มีรายการลา</p>
-          )}
+          </div>
+          
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">เหตุผลการลา</label>
+            <Textarea
+              placeholder="ระบุเหตุผลการลา (ถ้ามี)"
+              value={leaveReason}
+              onChange={(e) => setLeaveReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button onClick={handleLeaveRecording}>บันทึกวันลา</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

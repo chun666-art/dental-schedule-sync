@@ -1,232 +1,180 @@
 
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
+import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { Calendar } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { TimePickerDemo } from '@/components/ui/time-picker-demo';
 import { loadMeetingData, saveMeetingData } from '@/lib/data-utils';
-import { dateToKey } from '@/lib/date-utils';
-import { getMeetingRecords, recordMeeting } from '@/lib/supabase';
-import { MeetingRecord, SupabaseMeetingRecord } from '@/types/appointment';
+import { MeetingRecord } from '@/types/appointment';
+import { useToast } from '@/hooks/use-toast';
 
 interface MeetingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: { date?: string };
-  currentView: 'week' | 'today';
-  setCurrentView: (view: 'week' | 'today') => void;
+  onMeetingRecorded: () => void;
+  selectedDate: Date;
 }
 
-const MeetingModal: React.FC<MeetingModalProps> = ({
-  isOpen,
+const MeetingModal: React.FC<MeetingModalProps> = ({ 
+  isOpen, 
   onClose,
-  data,
-  currentView,
-  setCurrentView
+  onMeetingRecorded,
+  selectedDate
 }) => {
-  const [dentist, setDentist] = useState<string>('');
-  const [date, setDate] = useState<string>('');
-  const [period, setPeriod] = useState<"morning" | "afternoon">("morning");
-  const [meetingRecords, setMeetingRecords] = useState<{date: string, meetings: MeetingRecord[]}[]>([]);
+  const [meetingDate, setMeetingDate] = useState<Date | undefined>(selectedDate);
+  const [meetingTitle, setMeetingTitle] = useState('');
+  const [meetingDetails, setMeetingDetails] = useState('');
+  const [startTime, setStartTime] = useState<Date | undefined>(new Date());
+  const [endTime, setEndTime] = useState<Date | undefined>(new Date());
+  const [meetingLocation, setMeetingLocation] = useState('');
+  const [meetingData, setMeetingData] = useState<Record<string, MeetingRecord[]>>({});
+  const { toast } = useToast();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
-      const today = new Date();
-      const defaultDate = data?.date || dateToKey(today);
-      setDate(defaultDate);
-      loadMeetingRecords();
+      loadMeetingDataAsync();
+      setMeetingDate(selectedDate);
     }
-  }, [isOpen, data]);
+  }, [isOpen, selectedDate]);
 
-  const loadMeetingRecords = async () => {
+  const loadMeetingDataAsync = async () => {
     try {
-      // ลองดึงข้อมูลจาก Supabase ก่อน
-      const recordsFromSupabase = await getMeetingRecords();
-      
-      if (recordsFromSupabase && recordsFromSupabase.length > 0) {
-        // แปลงข้อมูลจาก Supabase เป็นรูปแบบที่ต้องการ
-        const meetingsByDate: Record<string, MeetingRecord[]> = {};
-        
-        recordsFromSupabase.forEach((record: SupabaseMeetingRecord) => {
-          if (!meetingsByDate[record.date]) {
-            meetingsByDate[record.date] = [];
-          }
-          meetingsByDate[record.date].push({
-            dentist: record.dentist,
-            period: record.period as "morning" | "afternoon"
-          });
-        });
-        
-        const records = Object.entries(meetingsByDate).map(([date, meetings]) => ({
-          date,
-          meetings
-        }));
-        
-        setMeetingRecords(records);
-      } else {
-        // ถ้าไม่มีข้อมูลใน Supabase ให้ใช้ localStorage
-        const meetingData = loadMeetingData();
-        const records = Object.entries(meetingData).map(([date, meetings]) => ({
-          date,
-          meetings: meetings as MeetingRecord[]
-        }));
-        setMeetingRecords(records);
-      }
+      const data = await loadMeetingData();
+      setMeetingData(data);
     } catch (error) {
-      console.error('Error loading meeting records:', error);
-      // ถ้าเกิดข้อผิดพลาดให้ใช้ localStorage
-      const meetingData = loadMeetingData();
-      const records = Object.entries(meetingData).map(([date, meetings]) => ({
-        date,
-        meetings: meetings as MeetingRecord[]
-      }));
-      setMeetingRecords(records);
+      console.error('Failed to load meeting data:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลการประชุมได้',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!dentist || !date || !period) return;
-    
-    try {
-      // บันทึกข้อมูลการประชุมใน Supabase
-      await recordMeeting(dentist, date, period);
-      
-      // บันทึกลงใน localStorage สำรอง
-      const meetingData = loadMeetingData();
-      meetingData[date] = meetingData[date] || [];
-      
-      meetingData[date].push({
-        dentist,
-        period
+  const handleMeetingRecording = async () => {
+    if (!meetingDate || !meetingTitle || !startTime || !endTime) {
+      toast({
+        title: 'ข้อมูลไม่ครบถ้วน',
+        description: 'กรุณากรอกข้อมูลการประชุมให้ครบถ้วน',
+        variant: 'destructive',
       });
-      
-      saveMeetingData(meetingData);
-      await loadMeetingRecords();
-      setDentist('');
-      setPeriod("morning");
-    } catch (error) {
-      console.error('Error submitting meeting:', error);
-      // ถ้าเกิดข้อผิดพลาดให้บันทึกลงใน localStorage อย่างเดียว
-      const meetingData = loadMeetingData();
-      meetingData[date] = meetingData[date] || [];
-      
-      meetingData[date].push({
-        dentist,
-        period
-      });
-      
-      saveMeetingData(meetingData);
-      await loadMeetingRecords();
-      setDentist('');
-      setPeriod("morning");
+      return;
     }
-  };
 
-  const handleDeleteMeeting = async (date: string, index: number) => {
-    const meetingData = loadMeetingData();
-    
-    if (meetingData[date] && meetingData[date].length > index) {
-      meetingData[date].splice(index, 1);
+    try {
+      const dateKey = format(meetingDate, 'yyyy-MM-dd');
+      const newMeeting: MeetingRecord = {
+        id: Date.now().toString(),
+        title: meetingTitle,
+        details: meetingDetails,
+        startTime: format(startTime, 'HH:mm'),
+        endTime: format(endTime, 'HH:mm'),
+        location: meetingLocation
+      };
       
-      if (meetingData[date].length === 0) {
-        delete meetingData[date];
+      // Create a clone of the current meeting data
+      const updatedMeetingData = { ...meetingData };
+      
+      // Add meeting for this date
+      if (!updatedMeetingData[dateKey]) {
+        updatedMeetingData[dateKey] = [];
       }
+      updatedMeetingData[dateKey].push(newMeeting);
       
-      saveMeetingData(meetingData);
-      await loadMeetingRecords();
+      // Save updated meeting data
+      await saveMeetingData(updatedMeetingData);
+      
+      // Update state with the new data
+      setMeetingData(updatedMeetingData);
+      
+      // Reset form
+      setMeetingTitle('');
+      setMeetingDetails('');
+      setMeetingLocation('');
+      
+      toast({
+        title: 'บันทึกการประชุมสำเร็จ',
+        description: `บันทึกการประชุม "${meetingTitle}" เรียบร้อยแล้ว`,
+      });
+      
+      onMeetingRecorded();
+      onClose();
+    } catch (error) {
+      console.error('Failed to record meeting:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถบันทึกการประชุมได้',
+        variant: 'destructive',
+      });
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>บันทึกการประชุม</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid gap-2">
-            <Label htmlFor="meeting-dentist">เลือกหมอฟัน:</Label>
-            <select
-              id="meeting-dentist"
-              value={dentist}
-              onChange={(e) => setDentist(e.target.value)}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="">เลือกหมอฟัน</option>
-              <option value="DC">DC</option>
-              <option value="DD">DD</option>
-              <option value="DPa">DPa</option>
-              <option value="DPu">DPu</option>
-              <option value="DT">DT</option>
-            </select>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="meeting-date">วันที่:</Label>
-            <input
-              type="date"
-              id="meeting-date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="p-2 border rounded"
-              required
+        <div className="space-y-4 mt-4">
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">หัวข้อการประชุม</label>
+            <Input
+              placeholder="ระบุหัวข้อการประชุม"
+              value={meetingTitle}
+              onChange={(e) => setMeetingTitle(e.target.value)}
             />
           </div>
           
-          <div className="grid gap-2">
-            <Label htmlFor="meeting-period">ช่วงเวลา:</Label>
-            <select
-              id="meeting-period"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as "morning" | "afternoon")}
-              className="p-2 border rounded"
-              required
-            >
-              <option value="">เลือกช่วงเวลา</option>
-              <option value="morning">ช่วงเช้า</option>
-              <option value="afternoon">ช่วงบ่าย</option>
-            </select>
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">วันที่ประชุม: {meetingDate ? format(meetingDate, 'dd MMMM yyyy', { locale: th }) : ''}</label>
+            <Calendar
+              mode="single"
+              selected={meetingDate}
+              onSelect={setMeetingDate}
+              className="border rounded-md p-2"
+              locale={th}
+            />
           </div>
           
-          <DialogFooter>
-            <Button type="submit">บันทึก</Button>
-          </DialogFooter>
-        </form>
-        
-        {/* แสดงรายการประชุมที่บันทึกไว้ */}
-        <div className="mt-6">
-          <h3 className="font-medium mb-2">รายการประชุมที่บันทึกไว้:</h3>
-          {meetingRecords.length > 0 ? (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {meetingRecords.map((record, recordIndex) => (
-                <div key={recordIndex} className="p-2 bg-gray-100 rounded">
-                  <div className="font-medium">{record.date}</div>
-                  <div className="space-y-1 mt-1">
-                    {record.meetings.map((meeting, mIndex) => (
-                      <div key={mIndex} className="flex justify-between items-center">
-                        <span>
-                          {meeting.dentist} ({meeting.period === 'morning' ? 'เช้า' : 'บ่าย'})
-                        </span>
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          className="bg-red-500 hover:bg-red-600 text-white p-1 text-xs"
-                          onClick={() => handleDeleteMeeting(record.date, mIndex)}
-                        >
-                          ลบ
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">เวลาเริ่มต้น</label>
+              <TimePickerDemo date={startTime} setDate={setStartTime} />
             </div>
-          ) : (
-            <p className="text-gray-500">ไม่มีรายการประชุม</p>
-          )}
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">เวลาสิ้นสุด</label>
+              <TimePickerDemo date={endTime} setDate={setEndTime} />
+            </div>
+          </div>
+          
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">สถานที่ประชุม</label>
+            <Input
+              placeholder="ระบุสถานที่ประชุม"
+              value={meetingLocation}
+              onChange={(e) => setMeetingLocation(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm font-medium">รายละเอียดการประชุม</label>
+            <Textarea
+              placeholder="ระบุรายละเอียดการประชุม"
+              value={meetingDetails}
+              onChange={(e) => setMeetingDetails(e.target.value)}
+              rows={3}
+            />
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button onClick={handleMeetingRecording}>บันทึกการประชุม</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
