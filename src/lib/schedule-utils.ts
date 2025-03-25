@@ -295,11 +295,10 @@ export const findAvailableSlots = async (
   date: Date, 
   duration: "30min" | "1hour" | "2hours", 
   dentist: string, 
-  preferredTime?: string,
-  period?: 'morning' | 'afternoon'
+  preferredTime?: string
 ): Promise<string[]> => {
   try {
-    const appointments = await loadAppointments();
+    const appointmentsData = await loadAppointments();
     const leaveData = await loadLeaveData();
     const meetingData = await loadMeetingData();
     const dateKey = dateToKey(date);
@@ -318,19 +317,10 @@ export const findAvailableSlots = async (
     }
     
     // กำหนดช่วงเวลาทั้งหมดที่สามารถนัดได้
-    let allTimeSlots: TimeSlot[] = [];
-    
-    if (!period || period === 'morning') {
-      allTimeSlots = allTimeSlots.concat([
-        "9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00"
-      ] as TimeSlot[]);
-    }
-    
-    if (!period || period === 'afternoon') {
-      allTimeSlots = allTimeSlots.concat([
-        "13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"
-      ] as TimeSlot[]);
-    }
+    let allTimeSlots: TimeSlot[] = [
+      "9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00",
+      "13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"
+    ] as TimeSlot[];
     
     // ตรวจสอบการประชุม
     if (meetingData[dateKey]) {
@@ -354,15 +344,15 @@ export const findAvailableSlots = async (
     // ตรวจสอบช่วงเวลาที่มีคนนัดแล้ว
     const occupiedSlots: Set<string> = new Set();
     
-    if (appointments[dateKey]) {
-      Object.entries(appointments[dateKey]).forEach(([timeSlot, appts]) => {
+    if (appointmentsData[dateKey]) {
+      Object.entries(appointmentsData[dateKey]).forEach(([timeSlot, appts]) => {
         // ถ้ามีการนัดของหมอนี้ในช่วงเวลานี้
-        if (appts.some(appt => appt.dentist === dentist)) {
+        if (Array.isArray(appts) && appts.some(appt => appt.dentist === dentist)) {
           occupiedSlots.add(timeSlot);
           
           // ถ้าเป็นการนัดที่มีระยะเวลามากกว่า 30 นาที ให้เพิ่มช่วงเวลาที่เกี่ยวข้อง
           const matchingAppt = appts.find(appt => appt.dentist === dentist);
-          if (matchingAppt && (matchingAppt.duration === '1hour' || matchingAppt.duration === '2hours')) {
+          if (matchingAppt && matchingAppt.duration) {
             const relatedSlots = getRelatedTimeSlots(timeSlot, matchingAppt.duration);
             relatedSlots.forEach(slot => occupiedSlots.add(slot));
           }

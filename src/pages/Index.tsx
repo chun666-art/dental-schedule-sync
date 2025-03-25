@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarDays, Plus, UserPlus, Calendar as CalendarIcon, Coffee, Users } from 'lucide-react';
+import { th } from 'date-fns/locale';
 import NavBar from '@/components/NavBar';
 import AuthCheck from '@/components/auth/AuthCheck';
 import ScheduleTodayTable from '@/components/ScheduleTodayTable';
@@ -21,6 +23,8 @@ const Index = () => {
   const [dentistsModalOpen, setDentistsModalOpen] = useState(false);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<any>({ date: '', time: '' });
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [dentists, setDentists] = useState<Record<string, string>>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
@@ -42,6 +46,12 @@ const Index = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  const handleAddClick = () => {
+    const dateKey = selectedDate.toISOString().split('T')[0];
+    setModalData({ date: dateKey, time: '9:00-9:30' });
+    setAddModalOpen(true);
+  };
+
   // Render content
   return (
     <AuthCheck>
@@ -57,7 +67,7 @@ const Index = () => {
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   className="border rounded-md p-2"
-                  locale="th"
+                  locale={th}
                 />
               </div>
               
@@ -65,7 +75,7 @@ const Index = () => {
                 <h2 className="text-xl font-semibold mb-4">เครื่องมือ</h2>
                 <div className="flex flex-col space-y-2">
                   <Button 
-                    onClick={() => setAddModalOpen(true)} 
+                    onClick={handleAddClick} 
                     className="w-full justify-start"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -125,13 +135,27 @@ const Index = () => {
                 
                 {currentView === 'today' ? (
                   <ScheduleTodayTable 
-                    date={selectedDate} 
-                    refreshTrigger={refreshTrigger} 
+                    currentDate={selectedDate} 
+                    refreshTrigger={refreshTrigger}
+                    setIsAddModalOpen={setAddModalOpen}
+                    setIsEditModalOpen={() => {}} 
+                    setIsRebookModalOpen={() => {}}
+                    setIsCancelModalOpen={() => {}}
+                    setModalData={setModalData}
+                    setCancelTarget={setCancelTarget}
                   />
                 ) : (
                   <ScheduleWeeklyTable 
-                    startDate={selectedDate} 
-                    refreshTrigger={refreshTrigger} 
+                    currentWeekStart={selectedDate} 
+                    refreshTrigger={refreshTrigger}
+                    setIsAddModalOpen={setAddModalOpen}
+                    setIsEditModalOpen={() => {}} 
+                    setIsRebookModalOpen={() => {}}
+                    setIsCancelModalOpen={() => {}}
+                    setIsLeaveModalOpen={setLeaveModalOpen}
+                    setIsMeetingModalOpen={setMeetingModalOpen}
+                    setModalData={setModalData}
+                    setCancelTarget={setCancelTarget}
                   />
                 )}
               </div>
@@ -142,11 +166,9 @@ const Index = () => {
           <AddAppointmentModal 
             isOpen={addModalOpen} 
             onClose={() => setAddModalOpen(false)} 
-            onAppointmentAdded={handleRefresh}
-            dentists={dentists}
+            data={modalData}
             currentView={currentView}
             setCurrentView={setCurrentView}
-            selectedDate={selectedDate}
           />
           
           <DentistsModal 

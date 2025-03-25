@@ -1,3 +1,4 @@
+
 import { format, add, isWithinInterval } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,22 +19,28 @@ export const loadAppointments = async () => {
     }
 
     // Convert the Supabase data to the format expected by the app
-    const formattedAppointments: Record<string, any[]> = {};
+    const formattedAppointments: Record<string, Record<string, any[]>> = {};
     if (data && data.length > 0) {
       data.forEach(appointment => {
-        const dateKey = format(new Date(appointment.start_time), 'yyyy-MM-dd');
+        const dateKey = appointment.date;
+        const timeSlot = appointment.time;
+        
         if (!formattedAppointments[dateKey]) {
-          formattedAppointments[dateKey] = [];
+          formattedAppointments[dateKey] = {};
         }
-        formattedAppointments[dateKey].push({
+        
+        if (!formattedAppointments[dateKey][timeSlot]) {
+          formattedAppointments[dateKey][timeSlot] = [];
+        }
+        
+        formattedAppointments[dateKey][timeSlot].push({
           id: appointment.id,
           dentist: appointment.dentist,
-          startTime: format(new Date(appointment.start_time), 'HH:mm'),
-          endTime: format(new Date(appointment.end_time), 'HH:mm'),
-          patientName: appointment.patient_name,
-          details: appointment.details,
-          status: appointment.status,
           duration: appointment.duration,
+          patient: appointment.patient,
+          phone: appointment.phone,
+          treatment: appointment.treatment,
+          status: appointment.status
         });
       });
     }
@@ -50,32 +57,43 @@ export const loadAppointments = async () => {
 // Function to save appointments to localStorage
 export const saveAppointments = async (appointments: any) => {
   try {
-    // Prepare appointments for Supabase
-    const appointmentsToSave = Object.entries(appointments).flatMap(([dateKey, appointmentsForDate]) => {
-      return (appointmentsForDate as any[]).map(appointment => ({
-        id: appointment.id,
-        dentist: appointment.dentist,
-        start_time: format(new Date(`${dateKey} ${appointment.startTime}`), 'yyyy-MM-dd HH:mm:ss'),
-        end_time: format(new Date(`${dateKey} ${appointment.endTime}`), 'yyyy-MM-dd HH:mm:ss'),
-        patient_name: appointment.patientName,
-        details: appointment.details,
-        status: appointment.status,
-        duration: appointment.duration,
-      }));
+    // First, create a flat array of all appointments to save to Supabase
+    const appointmentsToSave: any[] = [];
+    
+    Object.entries(appointments).forEach(([dateKey, timeSlotsObj]) => {
+      Object.entries(timeSlotsObj as Record<string, any[]>).forEach(([timeSlot, apptsArray]) => {
+        apptsArray.forEach(appt => {
+          appointmentsToSave.push({
+            id: appt.id || uuidv4(),
+            date: dateKey,
+            time: timeSlot,
+            dentist: appt.dentist,
+            patient: appt.patient,
+            phone: appt.phone,
+            treatment: appt.treatment,
+            status: appt.status,
+            duration: appt.duration
+          });
+        });
+      });
     });
-
+    
     // Save to Supabase
-    const { error } = await supabase
-      .from('appointments')
-      .upsert(appointmentsToSave, { onConflict: 'id' });
+    if (appointmentsToSave.length > 0) {
+      const { error } = await supabase
+        .from('appointments')
+        .upsert(appointmentsToSave, { onConflict: 'id' });
 
-    if (error) {
-      console.error('Error saving appointments to Supabase:', error);
-      // Fallback to localStorage if Supabase fails
-      localStorage.setItem('appointments', JSON.stringify(appointments));
-      return false;
+      if (error) {
+        console.error('Error saving appointments to Supabase:', error);
+        // Fallback to localStorage if Supabase fails
+        localStorage.setItem('appointments', JSON.stringify(appointments));
+        return false;
+      }
     }
-
+    
+    // Also save to localStorage as backup
+    localStorage.setItem('appointments', JSON.stringify(appointments));
     return true;
   } catch (error) {
     console.error('Error saving appointments:', error);
@@ -87,50 +105,49 @@ export const saveAppointments = async (appointments: any) => {
 
 // Function to save an appointment with multiple time slots
 export const saveAppointmentWithMultipleSlots = async (
-  startDate: Date,
-  endDate: Date,
-  dentist: string,
-  startTime: string,
-  endTime: string,
-  patientName: string,
-  details: string,
-  status: string,
-  duration: number
-): Promise<boolean> => {
+  dateKey: string,
+  timeSlot: string,
+  appointment: any
+) => {
   try {
-    let currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const appointmentId = uuidv4();
-      const dateKey = format(currentDate, 'yyyy-MM-dd');
-      const startDateTime = new Date(`${dateKey} ${startTime}`);
-      const endDateTime = new Date(`${dateKey} ${endTime}`);
-
-      // Prepare appointment data for Supabase
-      const appointmentData = {
-        id: appointmentId,
-        dentist: dentist,
-        start_time: format(startDateTime, 'yyyy-MM-dd HH:mm:ss'),
-        end_time: format(endDateTime, 'yyyy-MM-dd HH:mm:ss'),
-        patient_name: patientName,
-        details: details,
-        status: status,
-        duration: duration,
-      };
-
-      // Save to Supabase
-      const { error } = await supabase
-        .from('appointments')
-        .insert([appointmentData]);
-
-      if (error) {
-        console.error('Error saving appointment to Supabase:', error);
-        return false;
-      }
-
-      // Move to the next day
-      currentDate = add(currentDate, { days: 1 });
+    const appointments = await loadAppointments();
+    
+    // Initialize the structure if it doesn't exist
+    if (!appointments[dateKey]) {
+      appointments[dateKey] = {};
     }
-
+    
+    if (!appointments[dateKey][timeSlot]) {
+      appointments[dateKey][timeSlot] = [];
+    }
+    
+    // Generate a unique ID for this appointment
+    const appointmentWithId = {
+      ...appointment,
+      id: uuidv4()
+    };
+    
+    // Add the appointment to the first time slot
+    appointments[dateKey][timeSlot].push(appointmentWithId);
+    
+    // Calculate additional time slots based on duration
+    const relatedSlots = getRelatedTimeSlots(timeSlot, appointment.duration);
+    
+    // Skip the first slot since we already added it
+    for (let i = 1; i < relatedSlots.length; i++) {
+      const slot = relatedSlots[i];
+      
+      if (!appointments[dateKey][slot]) {
+        appointments[dateKey][slot] = [];
+      }
+      
+      // Add the same appointment to the related slot
+      appointments[dateKey][slot].push({...appointmentWithId});
+    }
+    
+    // Save the updated appointments
+    await saveAppointments(appointments);
+    
     return true;
   } catch (error) {
     console.error('Error saving appointment with multiple slots:', error);
@@ -139,90 +156,110 @@ export const saveAppointmentWithMultipleSlots = async (
 };
 
 // Function to get related time slots for an appointment
-export const getRelatedTimeSlots = async (appointment: any): Promise<any[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('patient_name', appointment.patient_name)
-      .eq('dentist', appointment.dentist);
-
-    if (error) {
-      console.error('Error fetching related time slots from Supabase:', error);
-      return [];
+export const getRelatedTimeSlots = (timeSlot: string, duration: string): string[] => {
+  const slots = [
+    "9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00",
+    "13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00"
+  ];
+  
+  // Find the index of the current time slot
+  const index = slots.indexOf(timeSlot);
+  if (index === -1) return [timeSlot];
+  
+  // Calculate how many slots we need based on duration
+  let slotsNeeded = 1;
+  if (duration === "1hour") slotsNeeded = 2;
+  if (duration === "2hours") slotsNeeded = 4;
+  
+  // Return an array of consecutive slots
+  const result: string[] = [];
+  for (let i = 0; i < slotsNeeded; i++) {
+    if (index + i < slots.length) {
+      result.push(slots[index + i]);
     }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error getting related time slots:', error);
-    return [];
   }
+  
+  return result;
 };
 
 // Function to convert duration to a readable format
-export const convertToDuration = (duration: number): string => {
-  const hours = Math.floor(duration / 60);
-  const minutes = duration % 60;
-  return `${hours} ชม. ${minutes} นาที`;
+export const convertToDuration = (duration: string): string => {
+  switch (duration) {
+    case "30min":
+      return "30 นาที";
+    case "1hour":
+      return "1 ชั่วโมง";
+    case "2hours":
+      return "2 ชั่วโมง";
+    default:
+      return duration;
+  }
 };
 
 // Function to convert status to a readable format
 export const convertToStatus = (status: string): string => {
   switch (status) {
-    case 'confirmed':
-      return 'ยืนยันแล้ว';
-    case 'pending':
-      return 'รอการยืนยัน';
-    case 'cancelled':
-      return 'ยกเลิก';
+    case "รอการยืนยันนัด":
+      return "รอการยืนยันนัด";
+    case "ยืนยันนัด":
+      return "ยืนยันแล้ว";
+    case "นัดถูกยกเลิก":
+      return "ยกเลิก";
     default:
-      return 'ไม่ทราบสถานะ';
+      return status;
   }
 };
 
-// Add the missing updateAppointmentInAllSlots function
-export const updateAppointmentInAllSlots = async (appointmentId: string, updatedData: any) => {
+// Function to update appointment in all related time slots
+export const updateAppointmentInAllSlots = async (
+  dateKey: string,
+  timeSlot: string,
+  originalAppointment: any,
+  newAppointment: any
+) => {
   try {
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('id', appointmentId);
-
-    if (!appointments || appointments.length === 0) {
-      throw new Error('Appointment not found');
+    const appointments = await loadAppointments();
+    
+    if (!appointments[dateKey]) {
+      throw new Error('Date not found');
     }
-
-    const originalAppointment = appointments[0];
-    const relatedSlots = await getRelatedTimeSlots(originalAppointment);
-
-    // Update all related appointments
-    for (const slot of relatedSlots) {
-      await supabase
-        .from('appointments')
-        .update(updatedData)
-        .eq('id', slot.id);
+    
+    // Find all related time slots for the original appointment
+    let relatedTimeSlots: string[] = [];
+    if (originalAppointment.duration) {
+      relatedTimeSlots = getRelatedTimeSlots(timeSlot, originalAppointment.duration);
+    } else {
+      relatedTimeSlots = [timeSlot];
     }
-
+    
+    // Update the appointment in all related time slots
+    for (const slot of relatedTimeSlots) {
+      if (appointments[dateKey][slot]) {
+        for (let i = 0; i < appointments[dateKey][slot].length; i++) {
+          const appt = appointments[dateKey][slot][i];
+          
+          // Match the appointment based on patient, dentist, and phone
+          if (appt.patient === originalAppointment.patient && 
+              appt.dentist === originalAppointment.dentist && 
+              appt.phone === originalAppointment.phone) {
+            
+            // Update the appointment with new data
+            appointments[dateKey][slot][i] = {
+              ...appt,
+              ...newAppointment,
+              id: appt.id // Keep the same ID
+            };
+          }
+        }
+      }
+    }
+    
+    // Save the updated appointments
+    await saveAppointments(appointments);
+    
     return true;
   } catch (error) {
     console.error('Error updating appointment in all slots:', error);
-    
-    // Fallback to localStorage if Supabase fails
-    try {
-      const storedAppointments = JSON.parse(localStorage.getItem('appointments') || '{}');
-      Object.keys(storedAppointments).forEach(dateKey => {
-        storedAppointments[dateKey] = storedAppointments[dateKey].map((apt: any) => {
-          if (apt.id === appointmentId) {
-            return { ...apt, ...updatedData };
-          }
-          return apt;
-        });
-      });
-      localStorage.setItem('appointments', JSON.stringify(storedAppointments));
-      return true;
-    } catch (localError) {
-      console.error('Local storage fallback failed:', localError);
-      return false;
-    }
+    return false;
   }
 };

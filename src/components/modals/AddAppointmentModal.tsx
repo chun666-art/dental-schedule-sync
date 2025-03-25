@@ -106,13 +106,14 @@ const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({
     }
     
     const dateObj = new Date(data.date);
-    const availableSlotsPromise = findAvailableSlots(dateObj, duration, dentist, data.time);
+    // Simplified findAvailableSlots call
+    const availableSlotsPromise = findAvailableSlots(dateObj, duration, dentist);
     
     try {
       const availableSlots = await availableSlotsPromise;
       console.log("Available slots:", availableSlots, "for time:", data.time, "duration:", duration);
       
-      if (availableSlots.length > 0) {
+      if (availableSlots.includes(data.time)) {
         const newAppointment: Appointment = {
           dentist,
           duration,

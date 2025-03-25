@@ -2,8 +2,8 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { loadAppointments, saveAppointments, findAvailableSlots, dateToKey, getRelatedTimeSlots } from '@/lib/data-utils';
-import { CancelTarget, Appointment, SupabaseAppointment } from '@/types/appointment';
+import { loadAppointments, saveAppointments } from '@/lib/data-utils';
+import { CancelTarget } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 

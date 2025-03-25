@@ -26,11 +26,8 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
   selectedDate
 }) => {
   const [meetingDate, setMeetingDate] = useState<Date | undefined>(selectedDate);
-  const [meetingTitle, setMeetingTitle] = useState('');
-  const [meetingDetails, setMeetingDetails] = useState('');
-  const [startTime, setStartTime] = useState<Date | undefined>(new Date());
-  const [endTime, setEndTime] = useState<Date | undefined>(new Date());
-  const [meetingLocation, setMeetingLocation] = useState('');
+  const [selectedDentist, setSelectedDentist] = useState<string>('');
+  const [period, setPeriod] = useState<'morning' | 'afternoon'>('morning');
   const [meetingData, setMeetingData] = useState<Record<string, MeetingRecord[]>>({});
   const { toast } = useToast();
 
@@ -56,7 +53,7 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
   };
 
   const handleMeetingRecording = async () => {
-    if (!meetingDate || !meetingTitle || !startTime || !endTime) {
+    if (!meetingDate || !selectedDentist || !period) {
       toast({
         title: 'ข้อมูลไม่ครบถ้วน',
         description: 'กรุณากรอกข้อมูลการประชุมให้ครบถ้วน',
@@ -68,12 +65,8 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
     try {
       const dateKey = format(meetingDate, 'yyyy-MM-dd');
       const newMeeting: MeetingRecord = {
-        id: Date.now().toString(),
-        title: meetingTitle,
-        details: meetingDetails,
-        startTime: format(startTime, 'HH:mm'),
-        endTime: format(endTime, 'HH:mm'),
-        location: meetingLocation
+        dentist: selectedDentist,
+        period: period
       };
       
       // Create a clone of the current meeting data
@@ -92,13 +85,11 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
       setMeetingData(updatedMeetingData);
       
       // Reset form
-      setMeetingTitle('');
-      setMeetingDetails('');
-      setMeetingLocation('');
+      setSelectedDentist('');
       
       toast({
         title: 'บันทึกการประชุมสำเร็จ',
-        description: `บันทึกการประชุม "${meetingTitle}" เรียบร้อยแล้ว`,
+        description: `บันทึกการประชุมของ ${selectedDentist} เรียบร้อยแล้ว`,
       });
       
       onMeetingRecorded();
@@ -122,12 +113,20 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
         
         <div className="space-y-4 mt-4">
           <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">หัวข้อการประชุม</label>
-            <Input
-              placeholder="ระบุหัวข้อการประชุม"
-              value={meetingTitle}
-              onChange={(e) => setMeetingTitle(e.target.value)}
-            />
+            <label className="text-sm font-medium">เลือกทันตแพทย์</label>
+            <select
+              value={selectedDentist}
+              onChange={(e) => setSelectedDentist(e.target.value)}
+              className="p-2 border rounded"
+              required
+            >
+              <option value="">เลือกทันตแพทย์</option>
+              <option value="DC">DC</option>
+              <option value="DD">DD</option>
+              <option value="DPa">DPa</option>
+              <option value="DPu">DPu</option>
+              <option value="DT">DT</option>
+            </select>
           </div>
           
           <div className="flex flex-col space-y-2">
@@ -141,34 +140,17 @@ const MeetingModal: React.FC<MeetingModalProps> = ({
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col space-y-2">
-              <label className="text-sm font-medium">เวลาเริ่มต้น</label>
-              <TimePickerDemo date={startTime} setDate={setStartTime} />
-            </div>
-            <div className="flex flex-col space-y-2">
-              <label className="text-sm font-medium">เวลาสิ้นสุด</label>
-              <TimePickerDemo date={endTime} setDate={setEndTime} />
-            </div>
-          </div>
-          
           <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">สถานที่ประชุม</label>
-            <Input
-              placeholder="ระบุสถานที่ประชุม"
-              value={meetingLocation}
-              onChange={(e) => setMeetingLocation(e.target.value)}
-            />
-          </div>
-          
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-medium">รายละเอียดการประชุม</label>
-            <Textarea
-              placeholder="ระบุรายละเอียดการประชุม"
-              value={meetingDetails}
-              onChange={(e) => setMeetingDetails(e.target.value)}
-              rows={3}
-            />
+            <label className="text-sm font-medium">ช่วงเวลา</label>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as 'morning' | 'afternoon')}
+              className="p-2 border rounded"
+              required
+            >
+              <option value="morning">ช่วงเช้า</option>
+              <option value="afternoon">ช่วงบ่าย</option>
+            </select>
           </div>
           
           <div className="flex justify-end space-x-2 pt-4">

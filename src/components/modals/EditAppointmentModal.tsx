@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { loadAppointments, saveAppointments, updateAppointmentInAllSlots } from '@/lib/data-utils';
+import { loadAppointments, updateAppointmentInAllSlots } from '@/lib/data-utils';
 import { Appointment } from '@/types/appointment';
 import { useToast } from '@/hooks/use-toast';
 
@@ -44,10 +44,10 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     }
   }, [isOpen, data]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (originalAppointment) {
+    if (originalAppointment && data.date && data.time) {
       const newAppointment: Appointment = {
         dentist,
         duration,
@@ -59,18 +59,22 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
 
       try {
         // อัพเดทข้อมูลในทุกช่องเวลาที่เกี่ยวข้อง
-        updateAppointmentInAllSlots(
+        const result = await updateAppointmentInAllSlots(
           data.date,
           data.time,
           originalAppointment,
           newAppointment
         );
         
-        toast({
-          title: "แก้ไขนัดหมายสำเร็จ",
-          description: `แก้ไขนัดหมาย ${patient} กับ ${dentist} เรียบร้อยแล้ว`,
-          variant: "default",
-        });
+        if (result) {
+          toast({
+            title: "แก้ไขนัดหมายสำเร็จ",
+            description: `แก้ไขนัดหมาย ${patient} กับ ${dentist} เรียบร้อยแล้ว`,
+            variant: "default",
+          });
+        } else {
+          throw new Error("Failed to update appointment");
+        }
         
         onClose();
       } catch (error) {
