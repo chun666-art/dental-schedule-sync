@@ -15,26 +15,24 @@ const queryClient = new QueryClient();
 
 const App = () => {
   return (
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={
-                <AuthCheck>
-                  <Index />
-                </AuthCheck>
-              } />
-              <Route path="/auth" element={<Auth />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            <Route path="/" element={
+              <AuthCheck>
+                <Index />
+              </AuthCheck>
+            } />
+            <Route path="/auth" element={<Auth />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </TooltipProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 
