@@ -139,6 +139,8 @@ const Index = () => {
                     setIsEditModalOpen={() => {}} 
                     setIsRebookModalOpen={() => {}}
                     setIsCancelModalOpen={() => {}}
+                    setIsLeaveModalOpen={setLeaveModalOpen}
+                    setIsMeetingModalOpen={setMeetingModalOpen}
                     setModalData={setModalData}
                     setCancelTarget={setCancelTarget}
                   />
@@ -194,3 +196,4 @@ const Index = () => {
 };
 
 export default Index;
+

@@ -11,6 +11,8 @@ interface ScheduleTodayTableProps {
   setIsEditModalOpen: (isOpen: boolean) => void;
   setIsRebookModalOpen: (isOpen: boolean) => void;
   setIsCancelModalOpen: (isOpen: boolean) => void;
+  setIsLeaveModalOpen: (isOpen: boolean) => void;  // Add this missing prop
+  setIsMeetingModalOpen: (isOpen: boolean) => void;  // Add this missing prop
   setModalData: (data: any) => void;
   setCancelTarget: (target: any) => void;
 }
@@ -22,6 +24,8 @@ const ScheduleTodayTable: React.FC<ScheduleTodayTableProps> = ({
   setIsEditModalOpen,
   setIsRebookModalOpen,
   setIsCancelModalOpen,
+  setIsLeaveModalOpen,
+  setIsMeetingModalOpen,
   setModalData,
   setCancelTarget
 }) => {
