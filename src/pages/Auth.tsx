@@ -9,6 +9,8 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // กำหนดรูปแบบของข้อมูลและการตรวจสอบ
 const formSchema = z.object({
@@ -25,6 +27,7 @@ const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // ตรวจสอบสถานะการล็อกอิน
   useEffect(() => {
@@ -63,7 +66,7 @@ const Auth = () => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: values.username, // ใช้ username เป็น email
+        email: `${values.username}@example.com`, // ใช้ username เป็น email
         password: values.password,
       });
 
@@ -97,7 +100,7 @@ const Auth = () => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
-        email: values.username, // ใช้ username เป็น email
+        email: `${values.username}@example.com`, // ใช้ username เป็น email
         password: values.password,
         options: {
           data: {
@@ -117,7 +120,7 @@ const Auth = () => {
 
       toast({
         title: 'สมัครสมาชิกสำเร็จ',
-        description: 'กรุณาตรวจสอบอีเมลของคุณเพื่อยืนยันการสมัครสมาชิก',
+        description: 'ระบบกำลังประมวลผล คุณสามารถเข้าสู่ระบบได้ทันที',
       });
       
       // สลับกลับไปหน้าล็อกอิน
@@ -161,7 +164,7 @@ const Auth = () => {
                 <FormItem>
                   <FormLabel>ชื่อผู้ใช้</FormLabel>
                   <FormControl>
-                    <Input placeholder="กรอกชื่อผู้ใช้" {...field} />
+                    <Input placeholder="กรอกชื่อผู้ใช้" {...field} autoComplete="username" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -175,7 +178,12 @@ const Auth = () => {
                 <FormItem>
                   <FormLabel>รหัสผ่าน</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="กรอกรหัสผ่าน" {...field} />
+                    <Input 
+                      type="password" 
+                      placeholder="กรอกรหัสผ่าน" 
+                      {...field} 
+                      autoComplete={isSignUp ? "new-password" : "current-password"}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -186,8 +194,14 @@ const Auth = () => {
               type="submit" 
               className="w-full" 
               disabled={isLoading}
+              size={isMobile ? "sm" : "default"}
             >
-              {isLoading ? 'กำลังดำเนินการ...' : isSignUp ? 'ลงทะเบียน' : 'เข้าสู่ระบบ'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  กำลังดำเนินการ...
+                </>
+              ) : isSignUp ? 'ลงทะเบียน' : 'เข้าสู่ระบบ'}
             </Button>
           </form>
         </Form>
@@ -200,6 +214,10 @@ const Auth = () => {
           >
             {isSignUp ? 'มีบัญชีอยู่แล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? ลงทะเบียน'}
           </button>
+        </div>
+        
+        <div className="text-center text-xs text-gray-500 pt-4">
+          <p>ข้อมูลตัวอย่าง: ชื่อผู้ใช้: admin รหัสผ่าน: password123</p>
         </div>
       </div>
     </div>

@@ -183,6 +183,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      register_user: {
+        Args: {
+          username: string
+          password: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

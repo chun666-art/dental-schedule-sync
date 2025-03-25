@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
+import { Loader2 } from 'lucide-react';
 
 interface AuthCheckProps {
   children: React.ReactNode;
@@ -14,6 +15,16 @@ const AuthCheck: React.FC<AuthCheckProps> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // ตั้งค่าตัวฟังการเปลี่ยนแปลงสถานะการล็อกอินก่อน
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        setSession(currentSession);
+        if (!currentSession && !loading) {
+          navigate('/auth');
+        }
+      }
+    );
+
     // ตรวจสอบเซสชันเมื่อคอมโพเนนต์ถูกโหลด
     const checkSession = async () => {
       try {
@@ -33,23 +44,16 @@ const AuthCheck: React.FC<AuthCheckProps> = ({ children }) => {
 
     checkSession();
 
-    // ติดตามการเปลี่ยนแปลงสถานะการล็อกอิน
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        if (!session) {
-          navigate('/auth');
-        }
-      }
-    );
-
     return () => subscription.unsubscribe();
   }, [navigate]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-gray-600">กำลังโหลด...</p>
+        </div>
       </div>
     );
   }
