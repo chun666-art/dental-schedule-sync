@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { loadAppointments, loadLeaveData, loadMeetingData, loadDentists } from '@/lib/data-utils';
@@ -6,28 +5,28 @@ import { dateToKey, isPastDate, hexToRgb, isWeekend, getNextMonday } from '@/lib
 import { Appointment } from '@/types/appointment';
 
 interface ScheduleTodayTableProps {
+  currentDate?: Date;  // Make this prop optional with the same name used in Index.tsx
+  refreshTrigger?: number;
   setIsAddModalOpen: (isOpen: boolean) => void;
   setIsEditModalOpen: (isOpen: boolean) => void;
   setIsRebookModalOpen: (isOpen: boolean) => void;
   setIsCancelModalOpen: (isOpen: boolean) => void;
-  setIsLeaveModalOpen: (isOpen: boolean) => void;
-  setIsMeetingModalOpen: (isOpen: boolean) => void;
   setModalData: (data: any) => void;
   setCancelTarget: (target: any) => void;
 }
 
 const ScheduleTodayTable: React.FC<ScheduleTodayTableProps> = ({
+  currentDate,
+  refreshTrigger,
   setIsAddModalOpen,
   setIsEditModalOpen,
   setIsRebookModalOpen,
   setIsCancelModalOpen,
-  setIsLeaveModalOpen,
-  setIsMeetingModalOpen,
   setModalData,
   setCancelTarget
 }) => {
   // ตรวจสอบวันสุดสัปดาห์และปรับเป็นวันจันทร์ถัดไป
-  const today = new Date();
+  const today = currentDate || new Date();
   const displayDate = isWeekend(today) ? getNextMonday(today) : today;
   const dateKey = dateToKey(displayDate);
   const isPast = isPastDate(displayDate);

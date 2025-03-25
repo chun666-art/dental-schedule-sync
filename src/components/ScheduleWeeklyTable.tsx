@@ -7,6 +7,7 @@ import { Appointment } from '@/types/appointment';
 
 interface ScheduleWeeklyTableProps {
   currentWeekStart: Date;
+  refreshTrigger?: number;
   setIsAddModalOpen: (isOpen: boolean) => void;
   setIsEditModalOpen: (isOpen: boolean) => void;
   setIsRebookModalOpen: (isOpen: boolean) => void;
@@ -19,6 +20,7 @@ interface ScheduleWeeklyTableProps {
 
 const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
   currentWeekStart,
+  refreshTrigger,
   setIsAddModalOpen,
   setIsEditModalOpen,
   setIsRebookModalOpen,

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -49,24 +48,19 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
       return;
     }
     
-    // เริ่มค้นหาจากวันที่ปัจจุบัน + จำนวนวันที่ต้องการรอ
     const startDate = new Date();
     startDate.setDate(startDate.getDate() + delay);
     
-    // ค้นหาคิวว่างตามช่วงเวลาที่เลือก
     let foundSlot = false;
     let searchDate = new Date(startDate);
     let foundSlots: string[] = [];
     
-    // ค้นหาไปเรื่อยๆ จนกว่าจะพบคิวว่าง หรือครบ 60 วัน
     for (let i = 0; i < 60; i++) {
       try {
         const leaveData = await loadLeaveData();
         const dateKey = dateToKey(searchDate);
         
-        // ตรวจสอบว่าหมอลาในวันนี้หรือไม่
         if (leaveData[dateKey] && leaveData[dateKey].includes(dentist)) {
-          // ข้ามวันนี้เพราะหมอลา
           searchDate = new Date(searchDate);
           searchDate.setDate(searchDate.getDate() + 1);
           continue;
@@ -74,21 +68,17 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
         
         const dayOfWeek = searchDate.getDay();
         
-        // ตรวจสอบตามเงื่อนไขใหม่
         if (period === 'morning') {
-          // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
           if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'morning');
             foundSlots = slots;
           } else if (dayOfWeek === 5) {
-            // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'morning');
             foundSlots = slots;
           }
         } else if (period === 'afternoon') {
-          // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
           if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'afternoon');
             foundSlots = slots;
           }
         }
@@ -104,7 +94,6 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
         console.error('Error finding available slots:', error);
       }
       
-      // เลื่อนไปวันถัดไป
       searchDate = new Date(searchDate);
       searchDate.setDate(searchDate.getDate() + 1);
     }
@@ -138,7 +127,6 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
       };
       
       try {
-        // บันทึกการนัดหมายในทุกช่องเวลาที่เกี่ยวข้อง
         await saveAppointmentWithMultipleSlots(dateKey, selectedSlot, newAppointment);
         
         toast({
@@ -147,18 +135,16 @@ const NextAppointmentModal: React.FC<NextAppointmentModalProps> = ({
           variant: "default",
         });
         
-        // พาไปหน้าสัปดาห์ที่มีการนัด
         const appointmentWeekStart = new Date(availableDate);
         const day = appointmentWeekStart.getDay();
         const diff = appointmentWeekStart.getDate() - day + (day === 0 ? -6 : 1);
         appointmentWeekStart.setDate(diff);
         
-        // จัดเก็บข้อมูลวันที่เริ่มต้นของสัปดาห์สำหรับการแสดงผล
         localStorage.setItem('currentWeekStart', appointmentWeekStart.toISOString());
         localStorage.setItem('currentView', 'week');
         
         onClose();
-        window.location.reload(); // รีโหลดหน้าเพื่อแสดงผลตารางสัปดาห์ที่มีการนัด
+        window.location.reload();
       } catch (error) {
         console.error('Error booking appointment:', error);
         toast({

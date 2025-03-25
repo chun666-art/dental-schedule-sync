@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -75,17 +74,17 @@ const RebookModal: React.FC<RebookModalProps> = ({
         if (period === 'morning') {
           // ค้นหาเฉพาะช่วงเช้าวันจันทร์-พฤหัส
           if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'morning');
             availableSlots = slots;
           } else if (dayOfWeek === 5) {
             // วันศุกร์ต้องค้นหาช่วงเช้าด้วย
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'morning');
             availableSlots = slots;
           }
         } else if (period === 'afternoon') {
           // ค้นหาช่วงบ่ายทุกวัน จันทร์-ศุกร์
           if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-            const slots = await findAvailableSlots(searchDate, duration, dentist, undefined, 'afternoon');
+            const slots = await findAvailableSlots(searchDate, duration, dentist, 'afternoon');
             availableSlots = slots;
           }
         }
@@ -162,15 +161,15 @@ const RebookModal: React.FC<RebookModalProps> = ({
       try {
         if (period === 'morning') {
           if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(nextDate, duration, dentist, 'morning');
             availableSlots = slots;
           } else if (dayOfWeek === 5) {
-            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'morning');
+            const slots = await findAvailableSlots(nextDate, duration, dentist, 'morning');
             availableSlots = slots;
           }
         } else if (period === 'afternoon') {
           if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-            const slots = await findAvailableSlots(nextDate, duration, dentist, undefined, 'afternoon');
+            const slots = await findAvailableSlots(nextDate, duration, dentist, 'afternoon');
             availableSlots = slots;
           }
         }

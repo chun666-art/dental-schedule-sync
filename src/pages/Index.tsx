@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -52,7 +51,6 @@ const Index = () => {
     setAddModalOpen(true);
   };
 
-  // Render content
   return (
     <AuthCheck>
       <div className="flex flex-col min-h-screen">
@@ -162,7 +160,6 @@ const Index = () => {
             </div>
           </div>
           
-          {/* Modals */}
           <AddAppointmentModal 
             isOpen={addModalOpen} 
             onClose={() => setAddModalOpen(false)} 
