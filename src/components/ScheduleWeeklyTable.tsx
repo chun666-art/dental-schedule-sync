@@ -4,6 +4,15 @@ import { Button } from '@/components/ui/button';
 import { loadAppointments, loadLeaveData, loadMeetingData, loadDentists } from '@/lib/data-utils';
 import { getMonday, formatDate, dateToKey, isPastDate, hexToRgb } from '@/lib/date-utils';
 import { Appointment } from '@/types/appointment';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow 
+} from '@/components/ui/table';
 
 interface ScheduleWeeklyTableProps {
   currentWeekStart: Date;
@@ -30,6 +39,8 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
   setModalData,
   setCancelTarget
 }) => {
+  const isMobile = useIsMobile();
+  
   const timeSlots = [
     'สถานะการลา/ประชุม', '9:00-9:30', '9:30-10:00', '10:00-10:30', '10:30-11:00',
     '13:00-13:30', '13:30-14:00', '14:00-14:30', '14:30-15:00'
@@ -89,11 +100,11 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
       : 'bg-green-500 hover:bg-green-600';
 
     return (
-      <td className={`p-3 border-b ${isPast ? 'bg-gray-100' : ''}`}>
+      <TableCell className={`p-2 border-b ${isPast ? 'bg-gray-100' : ''} ${isMobile ? 'text-xs' : ''}`}>
         {appointments[dateKey] && appointments[dateKey][time] && appointments[dateKey][time].map((appt, index) => (
           <div 
             key={index}
-            className={`appointment mb-2 p-3 rounded-lg shadow-sm flex justify-between items-center ${isPast ? 'opacity-50' : ''}`}
+            className={`appointment mb-2 p-2 rounded-lg shadow-sm flex flex-col space-y-1 ${isPast ? 'opacity-50' : ''}`}
             style={{
               background: dentists[appt.dentist] ? 
                 `linear-gradient(135deg, rgba(${hexToRgb(dentists[appt.dentist]).r}, ${hexToRgb(dentists[appt.dentist]).g}, ${hexToRgb(dentists[appt.dentist]).b}, 0.95), rgba(${hexToRgb(dentists[appt.dentist]).r}, ${hexToRgb(dentists[appt.dentist]).g}, ${hexToRgb(dentists[appt.dentist]).b}, 0.85))` : 
@@ -101,8 +112,8 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
               color: dentists[appt.dentist] ? 'white' : 'black'
             }}
           >
-            <div>
-              {appt.dentist} - {appt.patient} ({appt.phone}) - {appt.treatment}
+            <div className={`${isMobile ? 'text-xs' : ''}`}>
+              {appt.dentist} - {appt.patient} {!isMobile && `(${appt.phone})`} - {appt.treatment}
             </div>
             
             {appt.patient !== 'ลา' && !isPast && (
@@ -110,7 +121,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
                 <Button 
                   variant="outline"
                   size="sm" 
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs p-1"
+                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs p-1 h-6"
                   onClick={() => handleEditClick(appt, dateKey, time)}
                 >
                   แก้ไข
@@ -118,7 +129,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
                 <Button 
                   variant="outline"
                   size="sm" 
-                  className="bg-green-500 hover:bg-green-600 text-white text-xs p-1"
+                  className="bg-green-500 hover:bg-green-600 text-white text-xs p-1 h-6"
                   onClick={() => handleRebookClick(appt)}
                 >
                   นัดต่อ
@@ -126,7 +137,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
                 <Button 
                   variant="outline"
                   size="sm" 
-                  className="bg-red-500 hover:bg-red-600 text-white text-xs p-1"
+                  className="bg-red-500 hover:bg-red-600 text-white text-xs p-1 h-6"
                   onClick={() => handleCancelClick(dateKey, time, index)}
                 >
                   ยกเลิก
@@ -140,13 +151,13 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
           <Button 
             variant="outline"
             size="sm"
-            className={`${addButtonColor} text-white px-3 py-1 text-xs`}
+            className={`${addButtonColor} text-white px-2 py-0.5 text-xs h-6`}
             onClick={() => handleAddClick(dateKey, time)}
           >
             +เพิ่ม
           </Button>
         )}
-      </td>
+      </TableCell>
     );
   };
 
@@ -158,12 +169,12 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
     const isPast = isPastDate(date);
 
     return (
-      <td className={`p-3 border-b ${isPast ? 'bg-gray-100' : ''}`}>
+      <TableCell className={`p-2 border-b ${isPast ? 'bg-gray-100' : ''} ${isMobile ? 'text-xs' : ''}`}>
         {/* แสดงข้อมูลการลา */}
         {leaveData[dateKey] && leaveData[dateKey].map((dentistName, idx) => (
           <div 
             key={`leave-${idx}`}
-            className={`appointment mb-2 p-3 rounded-lg shadow-sm ${isPast ? 'opacity-50' : ''}`}
+            className={`appointment mb-2 p-2 rounded-lg shadow-sm ${isPast ? 'opacity-50' : ''}`}
             style={{
               backgroundColor: dentists[dentistName] ? 
                 `rgba(${hexToRgb(dentists[dentistName]).r}, ${hexToRgb(dentists[dentistName]).g}, ${hexToRgb(dentists[dentistName]).b}, 0.9)` : 
@@ -179,7 +190,7 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
         {meetingData[dateKey] && meetingData[dateKey].map((meeting, idx) => (
           <div 
             key={`meeting-${idx}`}
-            className={`appointment mb-2 p-3 rounded-lg shadow-sm ${isPast ? 'opacity-50' : ''}`}
+            className={`appointment mb-2 p-2 rounded-lg shadow-sm ${isPast ? 'opacity-50' : ''}`}
             style={{
               backgroundColor: dentists[meeting.dentist] ? 
                 `rgba(${hexToRgb(dentists[meeting.dentist]).r}, ${hexToRgb(dentists[meeting.dentist]).g}, ${hexToRgb(dentists[meeting.dentist]).b}, 0.9)` : 
@@ -192,11 +203,11 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
         ))}
 
         {!isPast && (
-          <div className="flex space-x-2">
+          <div className="flex space-x-1">
             <Button 
               variant="outline"
               size="sm"
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 text-xs"
+              className="bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 text-xs h-6"
               onClick={() => handleLeaveClick(dateKey)}
             >
               +ลา
@@ -204,37 +215,39 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
             <Button 
               variant="outline"
               size="sm"
-              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 text-xs"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-0.5 text-xs h-6"
               onClick={() => handleMeetingClick(dateKey)}
             >
               +ประชุม
             </Button>
           </div>
         )}
-      </td>
+      </TableCell>
     );
   };
 
   return (
-    <table className="w-full" id="appointment-table">
-      <thead>
-        <tr>
-          <th className="p-3 border-b text-left">เวลา</th>
+    <Table className="w-full" id="appointment-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead className={`p-2 border-b text-left ${isMobile ? 'text-xs' : ''}`}>เวลา</TableHead>
           {[0, 1, 2, 3, 4].map((dayOffset) => {
             const date = new Date(getMonday(currentWeekStart));
             date.setDate(date.getDate() + dayOffset);
             return (
-              <th key={dayOffset} className="p-3 border-b text-left">
+              <TableHead key={dayOffset} className={`p-2 border-b text-left ${isMobile ? 'text-xs' : ''}`}>
                 {['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'][dayOffset]} {formatDate(date)}
-              </th>
+              </TableHead>
             );
           })}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {timeSlots.map((time, rowIndex) => (
-          <tr key={rowIndex}>
-            <td className="p-3 border-b font-medium text-gray-700">{time}</td>
+          <TableRow key={rowIndex}>
+            <TableCell className={`p-2 border-b font-medium text-gray-700 ${isMobile ? 'text-xs' : ''}`}>
+              {time}
+            </TableCell>
             {[0, 1, 2, 3, 4].map((dayOffset) => {
               const date = new Date(getMonday(currentWeekStart));
               date.setDate(date.getDate() + dayOffset);
@@ -245,10 +258,10 @@ const ScheduleWeeklyTable: React.FC<ScheduleWeeklyTableProps> = ({
                 return <React.Fragment key={dayOffset}>{renderAppointmentCell(date, time)}</React.Fragment>;
               }
             })}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 };
 

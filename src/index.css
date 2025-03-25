@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -97,5 +98,47 @@
 
   body {
     @apply bg-background text-foreground;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* เพิ่มสไตล์สำหรับการแสดงผลบนมือถือ */
+  @media (max-width: 767px) {
+    html {
+      font-size: 14px;
+    }
+    
+    table {
+      font-size: 0.9rem;
+    }
+    
+    button {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+/* เพิ่มคลาสช่วยเหลือสำหรับการแสดงผลตารางบนมือถือ */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ทำให้ตารางสามารถเลื่อนได้ในแนวนอน */
+.table-scroll {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ปรับแต่งค่าพื้นฐานให้ทำงานได้ดีกับอุปกรณ์มือถือ */
+input, select, textarea, button {
+  font-size: 16px; /* ป้องกันเบราว์เซอร์ในมือถือซูมเข้าเมื่อโฟกัสที่ input */
+}
+
+@media (max-width: 767px) {
+  .container {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 }
